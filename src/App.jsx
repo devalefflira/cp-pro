@@ -7,6 +7,7 @@ import IncluirLancamento from './pages/IncluirLancamento';
 import Listagem from './pages/Listagem';
 import Relatorios from './pages/Relatorios';
 import Tarefas from './pages/Tarefas';
+import Calculadoras from './pages/Calculadoras';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="/listagem" element={<MainLayout><Listagem /></MainLayout>} />
         <Route path="/relatorios" element={<MainLayout><Relatorios /></MainLayout>} />
         <Route path="/tarefas" element={<MainLayout><Tarefas /></MainLayout>} />
+        <Route path="/calculadoras" element={<MainLayout><Calculadoras /></MainLayout>} />
         
         {/* Rota atualizada para usar o componente real */}
         <Route path="/grupos" element={<MainLayout><Grupos /></MainLayout>} />
