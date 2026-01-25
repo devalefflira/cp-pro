@@ -6,6 +6,7 @@ import Grupos from './pages/Grupos'; // Importando a página real
 import IncluirLancamento from './pages/IncluirLancamento';
 import Listagem from './pages/Listagem';
 import Relatorios from './pages/Relatorios';
+import Tarefas from './pages/Tarefas';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/incluir" element={<MainLayout><IncluirLancamento /></MainLayout>} />
         <Route path="/listagem" element={<MainLayout><Listagem /></MainLayout>} />
         <Route path="/relatorios" element={<MainLayout><Relatorios /></MainLayout>} />
+        <Route path="/tarefas" element={<MainLayout><Tarefas /></MainLayout>} />
         
         {/* Rota atualizada para usar o componente real */}
         <Route path="/grupos" element={<MainLayout><Grupos /></MainLayout>} />
