@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { FileDown, Search, Calendar, FileText } from 'lucide-react';
+import { FileDown, Search, Calendar, FileText, Users } from 'lucide-react'; // Adicionei Users para o ícone
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -29,19 +29,40 @@ const rgbToHex = (rgbArray) => {
 };
 
 export default function Relatorios() {
+  // Estados Relatório 1 (Total por Período)
   const [range, setRange] = useState({ inicio: '', fim: '' });
   const [dadosSemana, setDadosSemana] = useState([]);
+
+  // Estados Relatório 2 (Diário)
   const [dia, setDia] = useState('');
   const [dadosDia, setDadosDia] = useState([]);
 
+  // Estados Relatório 3 (Totalizador por Fornecedor)
+  const [filtrosFornecedor, setFiltrosFornecedor] = useState({
+    inicio: '',
+    fim: '',
+    status: '',
+    fornecedor_id: ''
+  });
+  const [listaFornecedores, setListaFornecedores] = useState([]);
+
   const formatMoney = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-  // --- BUSCAS ---
+  // Carregar lista de fornecedores para o select
+  useEffect(() => {
+    async function carregar() {
+        const { data } = await supabase.from('fornecedores').select('*').order('nome');
+        setListaFornecedores(data || []);
+    }
+    carregar();
+  }, []);
+
+  // --- BUSCAS EXISTENTES ---
   const buscarSemana = async () => {
     if (!range.inicio || !range.fim) return alert('Selecione as datas!');
     const { data, error } = await supabase
       .from('lancamentos')
-      .select('*') // Traz tudo para somar, não precisa de joins complexos aqui se for só totais
+      .select('*')
       .gte('data_vencimento', range.inicio)
       .lte('data_vencimento', range.fim)
       .order('data_vencimento');
@@ -64,13 +85,12 @@ export default function Relatorios() {
   };
 
   // ==================================================================================
-  // 1. GERADOR DE PDF: TOTAL DA SEMANA
+  // 1. GERADOR PDF: TOTAL DA SEMANA
   // ==================================================================================
   const gerarPDFSemanal = () => {
     const doc = new jsPDF();
     const dataHoraGeracao = format(new Date(), 'dd/MM/yyyy, HH:mm');
 
-    // 1. TÍTULO
     doc.setFontSize(18);
     doc.setTextColor(0, 51, 102);
     doc.text("Total da Semana", 105, 15, { align: 'center' });
@@ -79,60 +99,46 @@ export default function Relatorios() {
     doc.setTextColor(150);
     doc.text(`Gerado em: ${dataHoraGeracao}`, 200, 25, { align: 'right' });
 
-    // 2. PROCESSAMENTO (AGRUPAR POR DIA)
     const resumoPorDia = {};
     let totalGeral = 0;
 
     dadosSemana.forEach(item => {
         const data = item.data_vencimento;
-        if (!resumoPorDia[data]) {
-            resumoPorDia[data] = 0;
-        }
+        if (!resumoPorDia[data]) resumoPorDia[data] = 0;
         resumoPorDia[data] += Number(item.valor);
         totalGeral += Number(item.valor);
     });
 
-    // Converter objeto em array ordenado e formatado
     const linhasTabela = Object.keys(resumoPorDia).sort().map(dataIso => {
-        const dataObj = new Date(dataIso + 'T12:00:00'); // T12 previne timezone
+        const dataObj = new Date(dataIso + 'T12:00:00');
         const diaSemana = format(dataObj, 'EEEE', { locale: ptBR });
         const diaCapitalizado = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
         
         return [
-            format(dataObj, 'dd/MM/yyyy'), // Coluna Vencimento
-            diaCapitalizado,               // Coluna Dia
-            formatMoney(resumoPorDia[dataIso]) // Coluna Valor
+            format(dataObj, 'dd/MM/yyyy'),
+            diaCapitalizado,
+            formatMoney(resumoPorDia[dataIso])
         ];
     });
 
-    // Adiciona Linha de Total
     linhasTabela.push(['Total da Semana', '', formatMoney(totalGeral)]);
 
-    // 3. DESENHAR TABELA
     autoTable(doc, {
         startY: 35,
         head: [['Vencimento', 'Dia', 'Valor']],
         body: linhasTabela,
-        theme: 'striped', // Listrado cinza/branco igual imagem
+        theme: 'striped',
         headStyles: { fillColor: [0, 51, 102], textColor: 255, fontStyle: 'bold', halign: 'center' },
-        columnStyles: {
-            0: { halign: 'center' },
-            1: { halign: 'left' },
-            2: { halign: 'right' }
-        },
-        // Estilização customizada para a linha de Total
+        columnStyles: { 0: { halign: 'center' }, 1: { halign: 'left' }, 2: { halign: 'right' } },
         didParseCell: function (data) {
-            const isLastRow = data.row.index === linhasTabela.length - 1;
-            if (isLastRow) {
+            if (data.row.index === linhasTabela.length - 1) {
                 data.cell.styles.fillColor = [0, 51, 102];
                 data.cell.styles.textColor = [255, 255, 255];
                 data.cell.styles.fontStyle = 'bold';
-                // Mescla "Total da Semana" com a coluna vazia do meio, se desejar, ou deixa separado
             }
         },
-        // Rodapé com Paginação
         didDrawPage: function (data) {
-            const str = 'Pág. ' + doc.internal.getNumberOfPages() + '/1'; // Simplificado para 1 página por enquanto
+            const str = 'Pág. ' + doc.internal.getNumberOfPages() + '/1';
             doc.setFontSize(10);
             doc.setTextColor(0);
             doc.text(str, doc.internal.pageSize.width - 25, doc.internal.pageSize.height - 10);
@@ -143,7 +149,7 @@ export default function Relatorios() {
   };
 
   // ==================================================================================
-  // 2. GERADOR DE PDF: RELATÓRIO DIÁRIO (MANTIDO DO ANTERIOR)
+  // 2. GERADOR PDF: RELATÓRIO DIÁRIO
   // ==================================================================================
   const gerarPDFDiario = () => {
     const doc = new jsPDF();
@@ -152,7 +158,6 @@ export default function Relatorios() {
     const diaSemana = format(new Date(dia + 'T12:00:00'), 'EEEE', { locale: ptBR });
     const diaSemanaCapitalizado = diaSemana.charAt(0).toUpperCase() + diaSemana.slice(1);
 
-    // TÍTULO
     doc.setFontSize(18);
     doc.setTextColor(0, 51, 102);
     doc.text("Relatório Diário", 105, 15, { align: 'center' });
@@ -160,7 +165,6 @@ export default function Relatorios() {
     doc.setTextColor(100);
     doc.text(`Gerado em: ${dataHoraGeracao}`, 200, 15, { align: 'right' });
 
-    // RESUMO
     const resumoMap = {};
     let totalGeral = 0;
 
@@ -186,10 +190,7 @@ export default function Relatorios() {
       body: bodyResumo,
       theme: 'grid',
       headStyles: { fillColor: [0, 51, 102], textColor: 255, fontStyle: 'bold' },
-      columnStyles: {
-        0: { halign: 'center', valign: 'middle', fontStyle: 'bold', fillColor: [240, 240, 240] },
-        4: { halign: 'right', fontStyle: 'bold' }
-      },
+      columnStyles: { 0: { halign: 'center', valign: 'middle', fontStyle: 'bold', fillColor: [240, 240, 240] }, 4: { halign: 'right', fontStyle: 'bold' } },
       didParseCell: function (data) {
         if (data.row.index === bodyResumo.length - 1) {
             data.cell.styles.fillColor = [0, 51, 102];
@@ -204,7 +205,6 @@ export default function Relatorios() {
       }
     });
 
-    // DETALHE
     const bodyDetalhe = dadosDia.map(d => ({
         fornecedor: d.fornecedores?.nome || '',
         tipo: d.tipos_documento?.descricao || '',
@@ -251,11 +251,139 @@ export default function Relatorios() {
     doc.save(`Relatorio_Diario_${dataFormatada.replace(/\//g, '-')}.pdf`);
   };
 
+  // ==================================================================================
+  // 3. GERADOR PDF: TOTALIZADOR POR FORNECEDOR
+  // ==================================================================================
+  const gerarPDFFornecedor = async () => {
+    if (!filtrosFornecedor.inicio || !filtrosFornecedor.fim) {
+        return alert("Selecione o período (Data Inicial e Final)");
+    }
+
+    let query = supabase
+        .from('lancamentos')
+        .select(`*, fornecedores(nome)`)
+        .gte('data_vencimento', filtrosFornecedor.inicio)
+        .lte('data_vencimento', filtrosFornecedor.fim);
+
+    if (filtrosFornecedor.status) {
+        query = query.eq('status', filtrosFornecedor.status);
+    }
+    if (filtrosFornecedor.fornecedor_id) {
+        query = query.eq('fornecedor_id', filtrosFornecedor.fornecedor_id);
+    }
+
+    const { data, error } = await query;
+    if (error) return alert("Erro ao buscar dados: " + error.message);
+    if (!data || data.length === 0) return alert("Nenhum dado encontrado para este filtro.");
+
+    // --- Processamento dos Dados (Agrupamento) ---
+    const agrupado = {};
+    let totalGeralValor = 0;
+    
+    data.forEach(item => {
+        const nomeFornecedor = item.fornecedores?.nome || 'Fornecedor Desconhecido';
+        
+        if (!agrupado[nomeFornecedor]) {
+            agrupado[nomeFornecedor] = {
+                nome: nomeFornecedor,
+                valorTotal: 0,
+                juros: 0,
+                desconto: 0,
+                pagosEmDia: 0,
+                pagosEmAtraso: 0
+            };
+        }
+
+        const valor = Number(item.valor);
+        const valorPago = Number(item.valor_pago || 0);
+
+        agrupado[nomeFornecedor].valorTotal += valor;
+        totalGeralValor += valor;
+        
+        if (item.status === 'Pago') {
+            agrupado[nomeFornecedor].juros += Number(item.juros || 0);
+            agrupado[nomeFornecedor].desconto += Number(item.desconto || 0);
+
+            if ((item.dias_atraso || 0) > 0) {
+                agrupado[nomeFornecedor].pagosEmAtraso += valorPago;
+            } else {
+                agrupado[nomeFornecedor].pagosEmDia += valorPago;
+            }
+        }
+    });
+
+    // Converter para array e ordenar
+    const linhas = Object.values(agrupado)
+        .sort((a, b) => a.nome.localeCompare(b.nome))
+        .map(f => [
+            f.nome,
+            formatMoney(f.valorTotal),
+            formatMoney(f.juros),
+            formatMoney(f.desconto),
+            formatMoney(f.pagosEmDia),
+            formatMoney(f.pagosEmAtraso)
+        ]);
+
+    // Adiciona Total Geral
+    linhas.push([
+        'TOTAL GERAL', 
+        formatMoney(totalGeralValor), 
+        '-', '-', '-', '-'
+    ]);
+
+    // --- Geração do PDF ---
+    const doc = new jsPDF();
+    const dataHoraGeracao = format(new Date(), 'dd/MM/yyyy, HH:mm');
+    const periodo = `${format(new Date(filtrosFornecedor.inicio + 'T12:00:00'), 'dd/MM/yyyy')} a ${format(new Date(filtrosFornecedor.fim + 'T12:00:00'), 'dd/MM/yyyy')}`;
+
+    doc.setFontSize(16);
+    doc.setTextColor(0, 51, 102);
+    doc.text("Relatório Totalizador por Fornecedor", 105, 15, { align: 'center' });
+    
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Período: ${periodo}`, 105, 22, { align: 'center' });
+    doc.text(`Gerado em: ${dataHoraGeracao}`, 200, 22, { align: 'right' });
+
+    autoTable(doc, {
+        startY: 30,
+        head: [['Fornecedor', 'Valor Total', 'Juros/Multa', 'Desc/Abat', 'Pagos Dia', 'Pagos Atraso']],
+        body: linhas,
+        theme: 'striped',
+        headStyles: { fillColor: [0, 51, 102], halign: 'center' },
+        columnStyles: {
+            0: { halign: 'left', fontStyle: 'bold' },
+            1: { halign: 'right', fontStyle: 'bold', textColor: [0, 51, 102] },
+            2: { halign: 'right', textColor: [220, 53, 69] }, // Vermelho
+            3: { halign: 'right', textColor: [40, 167, 69] }, // Verde
+            4: { halign: 'right' },
+            5: { halign: 'right' }
+        },
+        didParseCell: function (data) {
+            // Estilo da última linha (Total Geral)
+            if (data.row.index === linhas.length - 1) {
+                data.cell.styles.fillColor = [0, 51, 102];
+                data.cell.styles.textColor = [255, 255, 255];
+                data.cell.styles.fontStyle = 'bold';
+            }
+        },
+        didDrawPage: function (data) {
+            const str = 'Pág. ' + doc.internal.getNumberOfPages();
+            doc.setFontSize(10);
+            doc.setTextColor(0);
+            doc.text(str, doc.internal.pageSize.width - 25, doc.internal.pageSize.height - 10);
+        }
+    });
+
+    doc.save(`Totalizador_Fornecedor.pdf`);
+  };
+
+
   return (
     <div className="space-y-10 pb-10">
       <h2 className="text-3xl font-bold text-primary">Relatórios</h2>
 
-      {/* BLOCO DE RELATÓRIO SEMANAL */}
+      {/* BLOCO 1: TOTAL POR PERÍODO */}
       <section className="bg-white p-6 rounded-lg shadow border border-blue-100">
         <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
           <Calendar className="text-secondary"/> Total por Período
@@ -266,23 +394,20 @@ export default function Relatorios() {
           <button onClick={buscarSemana} className="bg-primary text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-secondary">
             <Search size={18} /> Filtrar
           </button>
-          
           {dadosSemana.length > 0 && (
             <button onClick={gerarPDFSemanal} className="bg-red-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-red-700 ml-auto shadow">
               <FileDown size={18} /> Exportar PDF
             </button>
           )}
         </div>
-
-        {/* PRÉVIA NA TELA (Opcional: Listagem simples para conferência) */}
         {dadosSemana.length > 0 && (
             <div className="text-sm text-gray-500 italic mt-2">
-                {dadosSemana.length} lançamentos encontrados. Clique em "Exportar PDF" para ver o resumo totalizado.
+                {dadosSemana.length} lançamentos encontrados. Clique em "Exportar PDF" para ver o resumo.
             </div>
         )}
       </section>
 
-      {/* BLOCO DE RELATÓRIO DIÁRIO */}
+      {/* BLOCO 2: RELATÓRIO DIÁRIO */}
       <section className="bg-white p-6 rounded-lg shadow border border-blue-100">
         <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
           <FileText className="text-secondary"/> Relatório Diário Detalhado
@@ -293,14 +418,14 @@ export default function Relatorios() {
             <label className="block text-sm text-gray-500 mb-1">Selecione o Dia</label>
             <input type="date" className="w-full p-2 border rounded" value={dia} onChange={(e) => buscarDia(e.target.value)} />
           </div>
-          
           {dadosDia.length > 0 && (
             <button onClick={gerarPDFDiario} className="bg-red-600 text-white px-4 py-2 rounded flex items-center gap-2 hover:bg-red-700 shadow-lg">
               <FileDown size={18} /> Gerar PDF Diário
             </button>
           )}
         </div>
-
+        
+        {/* Prévia da Tabela Diária */}
         {dadosDia.length > 0 ? (
           <div className="overflow-x-auto border rounded max-h-96">
             <table className="w-full text-sm text-left">
@@ -317,10 +442,8 @@ export default function Relatorios() {
                   <tr key={d.id} className="hover:bg-gray-50">
                     <td className="p-3">{d.fornecedores?.nome}</td>
                     <td className="p-3">
-                        <span 
-                          className="px-2 py-1 rounded text-white text-xs font-bold shadow-sm"
-                          style={{ backgroundColor: rgbToHex(getCor(d.tipos_documento?.descricao)) }}
-                        >
+                        <span className="px-2 py-1 rounded text-white text-xs font-bold shadow-sm"
+                          style={{ backgroundColor: rgbToHex(getCor(d.tipos_documento?.descricao)) }}>
                             {d.tipos_documento?.descricao}
                         </span>
                     </td>
@@ -333,6 +456,55 @@ export default function Relatorios() {
           </div>
         ) : dia && <p className="text-gray-500 italic">Nenhum lançamento neste dia.</p>}
       </section>
+
+      {/* BLOCO 3: TOTALIZADOR POR FORNECEDOR (NOVO) */}
+      <section className="bg-white p-6 rounded-lg shadow border border-blue-100">
+        <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
+          <Users className="text-secondary"/> Relatório Totalizador por Fornecedor
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+            <div>
+                <label className="block text-sm text-gray-500 mb-1">Data Inicial</label>
+                <input type="date" className="w-full p-2 border rounded" 
+                    value={filtrosFornecedor.inicio} 
+                    onChange={e => setFiltrosFornecedor({...filtrosFornecedor, inicio: e.target.value})} />
+            </div>
+            <div>
+                <label className="block text-sm text-gray-500 mb-1">Data Final</label>
+                <input type="date" className="w-full p-2 border rounded" 
+                    value={filtrosFornecedor.fim} 
+                    onChange={e => setFiltrosFornecedor({...filtrosFornecedor, fim: e.target.value})} />
+            </div>
+            <div>
+                <label className="block text-sm text-gray-500 mb-1">Status</label>
+                <select className="w-full p-2 border rounded" 
+                    value={filtrosFornecedor.status} 
+                    onChange={e => setFiltrosFornecedor({...filtrosFornecedor, status: e.target.value})}>
+                    <option value="">STATUS (Todos)</option>
+                    <option value="Pendente">Pendente</option>
+                    <option value="Pago">Pago</option>
+                </select>
+            </div>
+            <div>
+                <label className="block text-sm text-gray-500 mb-1">Fornecedor</label>
+                <select className="w-full p-2 border rounded" 
+                    value={filtrosFornecedor.fornecedor_id} 
+                    onChange={e => setFiltrosFornecedor({...filtrosFornecedor, fornecedor_id: e.target.value})}>
+                    <option value="">Todos Fornecedores</option>
+                    {listaFornecedores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+            </div>
+            
+            <button 
+                onClick={gerarPDFFornecedor}
+                className="bg-[#0f172a] text-white px-4 py-2 rounded flex items-center justify-center gap-2 hover:bg-blue-900 shadow-lg"
+            >
+              <Search size={18} /> Filtrar e Exportar
+            </button>
+        </div>
+      </section>
+
     </div>
   );
 }
