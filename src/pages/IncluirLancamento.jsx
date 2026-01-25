@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Save, Eraser, PlusCircle, CheckCircle } from 'lucide-react'; // Ícones novos
+import { Save, Eraser, PlusCircle, CheckCircle } from 'lucide-react';
 
 export default function IncluirLancamento() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  // Estado para armazenar as listas dos menus suspensos
   const [listas, setListas] = useState({
     fornecedores: [],
     tipos_documento: [],
@@ -16,7 +15,6 @@ export default function IncluirLancamento() {
     parcelas: []
   });
 
-  // Estado Inicial (separado para poder resetar depois)
   const formInicial = {
     data_vencimento: '',
     fornecedor_id: '',
@@ -32,7 +30,6 @@ export default function IncluirLancamento() {
   };
   const [form, setForm] = useState(formInicial);
 
-  // 1. Carregar dados do banco ao abrir a tela
   useEffect(() => {
     async function carregarListas() {
       const [f, t, b, r, p] = await Promise.all([
@@ -59,10 +56,31 @@ export default function IncluirLancamento() {
     setForm({ ...form, [name]: value });
   };
 
+  // --- FUNÇÃO PARA JOGAR SÁBADO/DOMINGO PARA SEGUNDA ---
+  const ajustarDataUtil = (dataStr) => {
+    if (!dataStr) return dataStr;
+    
+    // Cria a data usando meio-dia (T12:00) para evitar problemas de fuso horário voltando o dia
+    const data = new Date(dataStr + 'T12:00:00');
+    const diaSemana = data.getDay(); // 0 = Domingo, 6 = Sábado
+
+    if (diaSemana === 6) { 
+      // É Sábado: Adiciona 2 dias -> Segunda
+      data.setDate(data.getDate() + 2);
+    } else if (diaSemana === 0) {
+      // É Domingo: Adiciona 1 dia -> Segunda
+      data.setDate(data.getDate() + 1);
+    } else {
+      // É dia útil, não muda nada
+      return dataStr;
+    }
+
+    // Retorna no formato YYYY-MM-DD
+    return data.toISOString().split('T')[0];
+  };
+
   // --- LÓGICA CENTRAL DE SALVAMENTO ---
-  // Retorna true se salvou com sucesso, false se deu erro
   const executarSalvamento = async () => {
-    // Validação
     if (!form.data_vencimento || !form.valor || !form.fornecedor_id) {
       alert("Preencha os campos obrigatórios (*)");
       return false;
@@ -70,8 +88,18 @@ export default function IncluirLancamento() {
 
     setLoading(true);
 
+    // APLICA A REGRA DE NEGÓCIO AQUI
+    // Se o usuário digitou sábado/domingo, vencimentoReal vira segunda-feira
+    const vencimentoReal = ajustarDataUtil(form.data_vencimento);
+    
+    // Opcional: Avisar o usuário se a data mudou (pode remover se quiser "silencioso")
+    if (vencimentoReal !== form.data_vencimento) {
+      // alert(`Atenção: A data ${form.data_vencimento} cai num fim de semana. Será salvo como ${vencimentoReal} (Segunda-feira).`);
+    }
+
     const { error } = await supabase.from('lancamentos').insert([{
       ...form,
+      data_vencimento: vencimentoReal, // Usa a data ajustada
       valor: parseFloat(form.valor),
       fornecedor_id: form.fornecedor_id || null,
       tipo_documento_id: form.tipo_documento_id || null,
@@ -89,7 +117,6 @@ export default function IncluirLancamento() {
     return true;
   };
 
-  // AÇÃO 1: Salvar e Sair (Vai para a Listagem)
   const handleSalvarSair = async (e) => {
     e.preventDefault();
     const sucesso = await executarSalvamento();
@@ -99,17 +126,12 @@ export default function IncluirLancamento() {
     }
   };
 
-  // AÇÃO 2: Salvar e Adicionar Novo (Limpa a tela e fica aqui)
   const handleSalvarNovo = async (e) => {
     e.preventDefault();
     const sucesso = await executarSalvamento();
     if (sucesso) {
-      alert('Lançamento salvo com sucesso! Você pode adicionar o próximo.');
-      // Mantém a data de vencimento (opcional, ajuda na digitação) ou limpa tudo
-      // Aqui optei por limpar tudo para evitar confusão
+      alert('Lançamento salvo com sucesso!');
       setForm(formInicial); 
-      
-      // Foca no topo da página ou no primeiro campo (opcional)
       window.scrollTo(0, 0);
     }
   };
@@ -131,6 +153,8 @@ export default function IncluirLancamento() {
             className="w-full p-3 border rounded bg-gray-50 focus:ring-2 focus:ring-secondary outline-none"
             required
           />
+          {/* Dica visual para o usuário saber que sábado/domingo ajusta automático */}
+          <span className="text-xs text-gray-400 mt-1 block">Finais de semana serão ajustados para segunda-feira automaticamente.</span>
         </div>
 
         {/* Fornecedor */}
@@ -242,7 +266,6 @@ export default function IncluirLancamento() {
         {/* --- ÁREA DOS BOTÕES --- */}
         <div className="md:col-span-2 flex flex-col md:flex-row justify-end gap-4 mt-6 pt-6 border-t">
           
-          {/* Botão Limpar */}
           <button 
             type="button" 
             onClick={() => setForm(formInicial)}
@@ -252,9 +275,8 @@ export default function IncluirLancamento() {
             Limpar
           </button>
           
-          {/* Botão Salvar e Adicionar Novo (Verde) */}
           <button 
-            type="button" // Type button para não submeter form HTML padrão
+            type="button"
             onClick={handleSalvarNovo}
             disabled={loading}
             className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded font-bold shadow transition-colors disabled:opacity-50 order-2"
@@ -263,7 +285,6 @@ export default function IncluirLancamento() {
             {loading ? 'Salvando...' : 'Salvar e Adicionar Novo'}
           </button>
 
-          {/* Botão Salvar e Sair (Azul Primário) */}
           <button 
             type="button" 
             onClick={handleSalvarSair}
