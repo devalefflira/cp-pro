@@ -1,15 +1,28 @@
+import { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 
 export default function MainLayout({ children }) {
-  return (
-    <div className="flex min-h-screen bg-gray-100">
-      {/* Sidebar Fixa */}
-      <Sidebar />
+  // Começa aberto no PC e fechado (mini) no celular
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
 
-      {/* Área de Conteúdo (com margem para não ficar embaixo da sidebar) */}
-      <main className="flex-1 ml-64 p-8 overflow-auto">
+  return (
+    <div className="flex min-h-screen bg-gray-100 relative">
+      
+      {/* Removemos o botão flutuante antigo daqui */}
+
+      {/* --- SIDEBAR --- */}
+      <Sidebar isOpen={isSidebarOpen} toggle={() => setIsSidebarOpen(!isSidebarOpen)} />
+
+      {/* --- CONTEÚDO PRINCIPAL --- */}
+      {/* Ajustamos a margem: ml-64 (Aberto) ou ml-20 (Fechado/Mini) */}
+      <main 
+        className={`flex-1 p-8 overflow-auto transition-all duration-300 ${
+          isSidebarOpen ? 'ml-64' : 'ml-20'
+        }`}
+      >
         {children}
       </main>
+
     </div>
   );
 }
