@@ -78,8 +78,7 @@ export default function Relatorios() {
       .from('lancamentos')
       .select(`*, fornecedores(nome), tipos_documento(descricao), bancos(nome), razoes(nome), parcelas(descricao)`)
       .eq('data_vencimento', dataSelecionada)
-      .order('tipo_documento_id', { ascending: true });
-
+      .order('id', { ascending: true }); // Ordena por data de criação (mais velho -> mais novo)
     if (error) alert('Erro: ' + error.message);
     else setDadosDia(data || []);
   };
