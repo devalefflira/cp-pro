@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Edit, ChevronLeft, ChevronRight, X, RotateCcw } from 'lucide-react';
+import { Trash2, Edit, ChevronLeft, ChevronRight, X, RotateCcw, History } from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 
 export default function Listagem() {
@@ -36,6 +36,10 @@ export default function Listagem() {
     dias_atraso: 0
   });
 
+  // --- ESTADOS DO MODAL ÚLTIMOS LANÇAMENTOS (NOVO) ---
+  const [modalUltimosAberto, setModalUltimosAberto] = useState(false);
+  const [ultimosLancamentos, setUltimosLancamentos] = useState([]);
+
   // 1. Carregar listas
   useEffect(() => {
     async function carregarAuxiliares() {
@@ -47,7 +51,7 @@ export default function Listagem() {
     carregarAuxiliares();
   }, []);
 
-  // 2. Buscar Lançamentos
+  // 2. Buscar Lançamentos (Listagem Principal)
   useEffect(() => {
     buscarLancamentos();
   }, [pagina, filtros]);
@@ -86,7 +90,26 @@ export default function Listagem() {
     }
   };
 
-  // --- LÓGICA DO MODAL ---
+  // --- LÓGICA DO MODAL ÚLTIMOS LANÇAMENTOS (NOVO) ---
+  const handleAbrirUltimos = async () => {
+    // Busca os 5 mais recentes criados (DESC)
+    const { data, error } = await supabase
+      .from('lancamentos')
+      .select(`*, fornecedores(nome), tipos_documento(descricao)`)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (error) {
+      alert('Erro ao buscar últimos lançamentos: ' + error.message);
+    } else {
+      // Inverte o array para exibir do "menos recente" para o "mais recente" (entre os 5)
+      // Como a busca foi DESC (Novo -> Velho), o reverse deixa (Velho -> Novo)
+      setUltimosLancamentos([...data].reverse());
+      setModalUltimosAberto(true);
+    }
+  };
+
+  // --- LÓGICA DO MODAL DE PAGAMENTO ---
   const handleAbrirModal = (lancamento) => {
     setLancamentoEdicao(lancamento);
     setDadosPagamento({
@@ -166,7 +189,17 @@ export default function Listagem() {
 
   return (
     <div className="space-y-6 relative">
-      <h2 className="text-3xl font-bold text-primary">Listagem de Lançamentos</h2>
+      
+      {/* CABEÇALHO COM BOTÃO ÚLTIMOS LANÇAMENTOS */}
+      <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+        <h2 className="text-3xl font-bold text-primary">Listagem de Lançamentos</h2>
+        <button
+          onClick={handleAbrirUltimos}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform hover:scale-105 flex items-center gap-2"
+        >
+          <History size={20} /> Últimos Lançamentos
+        </button>
+      </div>
 
       {/* FILTROS */}
       <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
@@ -200,8 +233,8 @@ export default function Listagem() {
 
       {/* TABELA COM SCROLL LATERAL E NOVAS COLUNAS */}
       <div className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-        <div className="overflow-x-auto pb-2"> {/* overflow-x-auto habilita o scroll */}
-          <table className="w-full text-left border-collapse min-w-max"> {/* min-w-max força largura */}
+        <div className="overflow-x-auto pb-2"> 
+          <table className="w-full text-left border-collapse min-w-max"> 
             <thead className="bg-gray-50 text-gray-600 font-semibold text-sm uppercase tracking-wider">
               <tr>
                 <th className="p-4 border-b whitespace-nowrap">Vencimento</th>
@@ -239,7 +272,6 @@ export default function Listagem() {
                         <button onClick={() => handleExcluir(l.id)} className="p-1 text-red-500 hover:bg-red-100 rounded border border-red-200"><Trash2 size={16} /></button>
                       </div>
                     </td>
-                    {/* DADOS DAS NOVAS COLUNAS */}
                     <td className="p-4 font-bold text-gray-700 bg-gray-50/50 whitespace-nowrap">{l.valor_pago ? formatarMoeda(l.valor_pago) : '-'}</td>
                     <td className="p-4 text-red-600 bg-gray-50/50 whitespace-nowrap">{l.juros > 0 ? formatarMoeda(l.juros) : '-'}</td>
                     <td className="p-4 text-green-600 bg-gray-50/50 whitespace-nowrap">{l.desconto > 0 ? formatarMoeda(l.desconto) : '-'}</td>
@@ -304,6 +336,42 @@ export default function Listagem() {
           </div>
         </div>
       )}
+
+      {/* MODAL ÚLTIMOS LANÇAMENTOS (NOVO) */}
+      {modalUltimosAberto && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
+          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg relative">
+            <button
+              onClick={() => setModalUltimosAberto(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-red-500"
+            >
+              <X size={24} />
+            </button>
+
+            <h3 className="text-2xl font-bold text-primary mb-6 flex items-center gap-2">
+              <History size={24} /> Últimos 5 Lançamentos
+            </h3>
+
+            <div className="space-y-3">
+              {ultimosLancamentos.map((l) => (
+                <div key={l.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 hover:bg-blue-50 transition-colors">
+                   <div className="flex justify-between items-start mb-2">
+                      <p className="font-bold text-gray-800 text-lg">{l.fornecedores?.nome || 'Sem Fornecedor'}</p>
+                      <span className={`px-2 py-1 rounded text-xs font-bold ${l.status === 'Pago' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                        {l.status}
+                      </span>
+                   </div>
+                   <div className="flex justify-between items-center text-sm">
+                      <p className="text-gray-500">{l.tipos_documento?.descricao} • {formatarData(l.data_vencimento)}</p>
+                      <p className="font-bold text-primary text-base">{formatarMoeda(l.valor)}</p>
+                   </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
