@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Garante que não haja margem branca ao redor do site */
 body {
-  @apply bg-background text-gray-800;
+  margin: 0;
+  padding: 0;
+  background-color: #f3f4f6; /* bg-gray-100 */
+}
+
+#root {
+  min-height: 100vh;
 }

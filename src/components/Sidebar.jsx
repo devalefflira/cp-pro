@@ -1,11 +1,9 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { 
-  LayoutDashboard, PlusCircle, List, FileText, 
-  Users, CheckSquare, LogOut, Rocket, Calculator, X 
-} from 'lucide-react';
+// ATENÇÃO AQUI: Adicionamos o 'Tag' na lista de importações abaixo
+import { LayoutDashboard, PlusCircle, List, FileText, Settings, LogOut, CheckSquare, Calculator, Tag } from 'lucide-react';
 import { supabase } from '../services/supabase';
 
-export default function Sidebar({ isOpen, toggle }) {
+export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -14,96 +12,45 @@ export default function Sidebar({ isOpen, toggle }) {
     navigate('/');
   };
 
-  const isActive = (path) => location.pathname === path 
-    ? "bg-blue-700 text-white shadow-lg" 
-    : "text-blue-100 hover:bg-blue-800 hover:text-white";
-
-  // --- ESTA É A FUNÇÃO QUE ESTAVA FALTANDO ---
-  const handleLinkClick = () => {
-    // Se a tela for pequena (celular), fecha o menu ao clicar num link
-    if (window.innerWidth < 768) {
-      toggle();
-    }
-  };
+  const isActive = (path) => location.pathname === path ? "bg-secondary" : "hover:bg-blue-800";
 
   return (
-    <aside 
-      className={`
-        bg-primary h-screen fixed left-0 top-0 flex flex-col justify-between z-40 shadow-2xl
-        transition-all duration-300 ease-in-out
-        ${isOpen ? 'w-64' : 'w-20'} 
-      `}
-    >
-      {/* --- TOPO --- */}
-      <div className="p-4">
+    <div className="bg-primary text-white w-64 min-h-screen flex flex-col p-4">
+      <h1 className="text-2xl font-bold mb-10 text-center tracking-wider">CP PRO</h1>
+      
+      <nav className="flex-1 space-y-2">
+        <Link to="/dashboard" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/dashboard')}`}>
+          <LayoutDashboard size={20} /> Visão Geral
+        </Link>
+        <Link to="/incluir" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/incluir')}`}>
+          <PlusCircle size={20} /> Incluir Lançamento
+        </Link>
+        <Link to="/listagem" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/listagem')}`}>
+          <List size={20} /> Listagem
+        </Link>
+        <Link to="/relatorios" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/relatorios')}`}>
+          <FileText size={20} /> Relatórios
+        </Link>
         
-        {/* --- LOGO (BOTÃO DE TOGGLE) --- */}
-        <div 
-          onClick={toggle} 
-          className={`
-            flex items-center gap-3 mb-8 text-white cursor-pointer hover:bg-blue-800 p-2 rounded-lg transition-colors
-            ${isOpen ? 'justify-start' : 'justify-center'}
-          `}
-          title={isOpen ? "Recolher Menu" : "Expandir Menu"}
-        >
-          <Rocket size={32} className="min-w-[32px]" />
-          
-          <h1 className={`text-2xl font-bold tracking-wider whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0'}`}>
-            CP PRO
-          </h1>
-        </div>
+        {/* LINK ETIQUETAS COM O ÍCONE TAG */}
+        <Link to="/etiquetas" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/etiquetas')}`}>
+          <Tag size={20} /> Etiquetas
+        </Link>
 
-        {/* --- NAVEGAÇÃO --- */}
-        <nav className="space-y-2">
-          
-          <Link to="/dashboard" onClick={handleLinkClick} className={`flex items-center gap-3 p-3 rounded-lg transition-all font-medium ${isActive('/dashboard')} ${isOpen ? '' : 'justify-center'}`}>
-            <LayoutDashboard size={20} className="min-w-[20px]" />
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0 hidden'}`}>Visão Geral</span>
-          </Link>
+        <Link to="/tarefas" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/tarefas')}`}>
+          <CheckSquare size={20} /> Tarefas
+        </Link>
+        <Link to="/calculadoras" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/calculadoras')}`}>
+          <Calculator size={20} /> Calculadoras
+        </Link>
+        <Link to="/grupos" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/grupos')}`}>
+          <Settings size={20} /> Cadastros Auxiliares
+        </Link>
+      </nav>
 
-          <Link to="/incluir" onClick={handleLinkClick} className={`flex items-center gap-3 p-3 rounded-lg transition-all font-medium ${isActive('/incluir')} ${isOpen ? '' : 'justify-center'}`}>
-            <PlusCircle size={20} className="min-w-[20px]" />
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0 hidden'}`}>Incluir</span>
-          </Link>
-
-          <Link to="/listagem" onClick={handleLinkClick} className={`flex items-center gap-3 p-3 rounded-lg transition-all font-medium ${isActive('/listagem')} ${isOpen ? '' : 'justify-center'}`}>
-            <List size={20} className="min-w-[20px]" />
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0 hidden'}`}>Listagem</span>
-          </Link>
-
-          <Link to="/relatorios" onClick={handleLinkClick} className={`flex items-center gap-3 p-3 rounded-lg transition-all font-medium ${isActive('/relatorios')} ${isOpen ? '' : 'justify-center'}`}>
-            <FileText size={20} className="min-w-[20px]" />
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0 hidden'}`}>Relatórios</span>
-          </Link>
-
-          <Link to="/grupos" onClick={handleLinkClick} className={`flex items-center gap-3 p-3 rounded-lg transition-all font-medium ${isActive('/grupos')} ${isOpen ? '' : 'justify-center'}`}>
-            <Users size={20} className="min-w-[20px]" />
-            <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0 hidden'}`}>Grupos</span>
-          </Link>
-
-          <Link to="/tarefas" onClick={handleLinkClick} className={`flex items-center gap-3 p-3 rounded-lg transition-all font-medium ${isActive('/tarefas')} ${isOpen ? '' : 'justify-center'}`}>
-             <CheckSquare size={20} className="min-w-[20px]" />
-             <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0 hidden'}`}>Tarefas</span>
-          </Link>
-
-          <Link to="/calculadoras" onClick={handleLinkClick} className={`flex items-center gap-3 p-3 rounded-lg transition-all font-medium ${isActive('/calculadoras')} ${isOpen ? '' : 'justify-center'}`}>
-             <Calculator size={20} className="min-w-[20px]" />
-             <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0 hidden'}`}>Calculadoras</span>
-          </Link>
-
-        </nav>
-      </div>
-
-      {/* --- RODAPÉ --- */}
-      <div className="p-4">
-        <button 
-          onClick={handleLogout}
-          className={`flex items-center gap-3 p-3 text-blue-200 hover:text-white transition-colors w-full rounded-lg hover:bg-blue-900 ${isOpen ? '' : 'justify-center'}`}
-        >
-          <LogOut size={20} className="min-w-[20px]" />
-          <span className={`whitespace-nowrap overflow-hidden transition-all duration-300 ${isOpen ? 'opacity-100 w-auto' : 'opacity-0 w-0 hidden'}`}>Sair</span>
-        </button>
-      </div>
-    </aside>
+      <button onClick={handleLogout} className="flex items-center gap-3 p-3 rounded hover:bg-red-600 mt-auto transition-colors text-red-200 hover:text-white">
+        <LogOut size={20} /> Sair
+      </button>
+    </div>
   );
 }
