@@ -1,20 +1,21 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { FileText, DollarSign, Clock, CheckCircle, AlertCircle, TrendingDown, TrendingUp, Search } from 'lucide-react';
+import { FileText, DollarSign, Clock, CheckCircle, AlertCircle, Percent, TrendingDown, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
-import { startOfMonth, endOfMonth, format } from 'date-fns';
+import { startOfMonth, endOfMonth, startOfYear, endOfYear, format } from 'date-fns';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#FF6B6B', '#4ECDC4'];
+const MESES = [
+  { id: 0, nome: 'jan' }, { id: 1, nome: 'fev' }, { id: 2, nome: 'mar' }, { id: 3, nome: 'abr' },
+  { id: 4, nome: 'mai' }, { id: 5, nome: 'jun' }, { id: 6, nome: 'jul' }, { id: 7, nome: 'ago' },
+  { id: 8, nome: 'set' }, { id: 9, nome: 'out' }, { id: 10, nome: 'nov' }, { id: 11, nome: 'dez' }
+];
 
 export default function Dashboard() {
-  // Configuração Inicial: Data de Hoje
-  const dataHoje = new Date();
-  
-  // Estado dos Filtros (Inicia com o Mês Atual Completo)
-  const [datas, setDatas] = useState({
-    inicio: format(startOfMonth(dataHoje), 'yyyy-MM-dd'),
-    fim: format(endOfMonth(dataHoje), 'yyyy-MM-dd')
-  });
+  // Estado dos Filtros
+  const dataAtual = new Date();
+  const [anoSelecionado, setAnoSelecionado] = useState(dataAtual.getFullYear());
+  const [mesSelecionado, setMesSelecionado] = useState(dataAtual.getMonth()); // Começa com o mês atual
 
   // Estado dos Dados
   const [resumo, setResumo] = useState({
@@ -31,41 +32,64 @@ export default function Dashboard() {
   const [dadosGraficoPizza, setDadosGraficoPizza] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Carrega os dados ao entrar na tela (Montagem)
   useEffect(() => {
     buscarDados();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Array vazio = só executa 1x ao montar. Depois só no botão Filtrar.
+  }, [anoSelecionado, mesSelecionado]);
 
-  const handleDataChange = (e) => {
-    setDatas({ ...datas, [e.target.name]: e.target.value });
+  // Lógica de Troca de Ano (Regra de Negócio: Ao ir para Ano Anterior, seleciona JAN)
+  const handleTrocaAno = (novoAno) => {
+    setAnoSelecionado(novoAno);
+    if (novoAno === dataAtual.getFullYear() - 1) {
+        setMesSelecionado(0); // Seleciona Janeiro
+    } else {
+        // Se voltar para o ano atual, volta para o mês atual
+        setMesSelecionado(dataAtual.getMonth());
+    }
+  };
+
+  // Lógica de Troca de Mês (Clicar no mesmo mês desmarca)
+  const handleTrocaMes = (mesId) => {
+    if (mesSelecionado === mesId) {
+        setMesSelecionado(null); // Desmarca para ver o ano todo
+    } else {
+        setMesSelecionado(mesId);
+    }
   };
 
   const buscarDados = async () => {
-    if(!datas.inicio || !datas.fim) {
-        alert("Por favor, selecione ambas as datas.");
-        return;
-    }
-
     setLoading(true);
 
-    // Buscar lançamentos filtrados por data de vencimento
+    // 1. Definir o range de datas
+    let dataInicio, dataFim;
+    const dataBase = new Date(anoSelecionado, mesSelecionado !== null ? mesSelecionado : 0, 1);
+
+    if (mesSelecionado !== null) {
+        // Filtro por Mês Específico
+        dataInicio = startOfMonth(dataBase).toISOString();
+        dataFim = endOfMonth(dataBase).toISOString();
+    } else {
+        // Filtro pelo Ano Inteiro
+        dataInicio = startOfYear(new Date(anoSelecionado, 0, 1)).toISOString();
+        dataFim = endOfYear(new Date(anoSelecionado, 0, 1)).toISOString();
+    }
+
+    // 2. Buscar lançamentos brutos no Supabase
     const { data, error } = await supabase
       .from('lancamentos')
       .select(`
         *,
         tipos_documento (descricao)
       `)
-      .gte('data_vencimento', datas.inicio)
-      .lte('data_vencimento', datas.fim);
+      .gte('data_vencimento', dataInicio)
+      .lte('data_vencimento', dataFim);
 
     if (error) {
-        alert('Erro ao carregar dashboard: ' + error.message);
+        alert('Erro ao carregar dashboard');
         setLoading(false);
         return;
     }
 
-    // Processar Cálculos no Frontend
+    // 3. Processar Cálculos no Frontend
     let totais = {
         totalDocs: data.length,
         valorTotal: 0,
@@ -73,8 +97,8 @@ export default function Dashboard() {
         valorPago: 0,
         juros: 0,
         desconto: 0,
-        pagosEmDia: 0,
-        pagosEmAtraso: 0
+        pagosEmDia: 0, // Soma de valor
+        pagosEmAtraso: 0 // Soma de valor
     };
 
     const mapTiposQtd = {};
@@ -92,17 +116,18 @@ export default function Dashboard() {
             totais.juros += Number(l.juros || 0);
             totais.desconto += Number(l.desconto || 0);
 
+            // Em dia vs Atraso (Baseado na coluna dias_atraso)
             if ((l.dias_atraso || 0) > 0) {
-                totais.pagosEmAtraso += valorPago;
+                totais.pagosEmAtraso += valorPago; // Soma o valor pago com atraso
             } else {
-                totais.pagosEmDia += valorPago;
+                totais.pagosEmDia += valorPago; // Soma o valor pago em dia
             }
 
         } else {
             totais.valorPendente += valor;
         }
 
-        // Dados para Gráficos
+        // Gráficos
         const tipo = l.tipos_documento?.descricao || 'Outros';
         
         // Qtd
@@ -131,82 +156,79 @@ export default function Dashboard() {
     <div className="space-y-6 pb-10">
       <h2 className="text-3xl font-bold text-primary">Visão Geral</h2>
 
-      {/* --- ÁREA DE FILTROS (DATA RANGE) --- */}
-      <div className="flex flex-col md:flex-row gap-4 items-end bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
+      {/* --- ÁREA DE FILTROS (ANO E MÊS) --- */}
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center bg-gray-50 p-4 rounded-xl border border-gray-200">
         
-        {/* Data Inicial */}
-        <div className="w-full md:w-auto">
-            <label className="block text-sm font-bold text-gray-700 mb-1">Data Inicial</label>
-            <input 
-                type="date" 
-                name="inicio"
-                value={datas.inicio}
-                onChange={handleDataChange}
-                className="p-2 border border-gray-300 rounded-lg w-full md:w-48 text-gray-700 focus:ring-2 focus:ring-primary outline-none"
-            />
+        {/* Seletor de Ano */}
+        <div className="flex gap-2">
+            <button 
+                onClick={() => handleTrocaAno(dataAtual.getFullYear())}
+                className={`px-6 py-2 rounded-full font-bold transition-colors ${anoSelecionado === dataAtual.getFullYear() ? 'bg-[#5D6D7E] text-white shadow-lg' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+            >
+                Este ano
+            </button>
+            <button 
+                onClick={() => handleTrocaAno(dataAtual.getFullYear() - 1)}
+                className={`px-6 py-2 rounded-full font-bold transition-colors ${anoSelecionado === dataAtual.getFullYear() - 1 ? 'bg-[#5D6D7E] text-white shadow-lg' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'}`}
+            >
+                Ano anterior
+            </button>
         </div>
 
-        {/* Data Final */}
-        <div className="w-full md:w-auto">
-            <label className="block text-sm font-bold text-gray-700 mb-1">Data Final</label>
-            <input 
-                type="date" 
-                name="fim"
-                value={datas.fim}
-                onChange={handleDataChange}
-                className="p-2 border border-gray-300 rounded-lg w-full md:w-48 text-gray-700 focus:ring-2 focus:ring-primary outline-none"
-            />
+        {/* Seletor de Meses */}
+        <div className="flex flex-wrap gap-2">
+            {MESES.map((m) => (
+                <button
+                    key={m.id}
+                    onClick={() => handleTrocaMes(m.id)}
+                    className={`px-3 py-1 text-sm rounded-full font-bold transition-all uppercase ${
+                        mesSelecionado === m.id 
+                        ? 'bg-[#5D6D7E] text-white shadow' 
+                        : 'bg-white border border-gray-300 text-gray-500 hover:bg-gray-100'
+                    }`}
+                >
+                    {m.nome}
+                </button>
+            ))}
         </div>
-
-        {/* Botão Filtrar */}
-        <button 
-            onClick={buscarDados}
-            className="w-full md:w-auto bg-primary text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-800 transition-colors flex items-center justify-center gap-2 shadow-md"
-        >
-            <Search size={20} />
-            Filtrar
-        </button>
       </div>
 
       {loading ? (
-          <div className="text-center py-20 text-gray-500 text-lg flex flex-col items-center">
-             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-             Calculando indicadores...
-          </div>
+          <div className="text-center py-20 text-gray-500">Calculando indicadores...</div>
       ) : (
         <>
             {/* --- CARDS LINHA 1 (PRINCIPAIS) --- */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500 flex flex-col justify-between h-32 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500 flex flex-col justify-between h-32 relative overflow-hidden">
                     <div>
                         <p className="text-gray-500 text-sm font-semibold mb-1">Total Documentos</p>
                         <h3 className="text-3xl font-bold text-gray-800">{resumo.totalDocs}</h3>
                     </div>
-                    <div className="absolute right-4 top-4 bg-blue-50 p-3 rounded-full text-blue-500 group-hover:bg-blue-100 transition-colors"><FileText size={24} /></div>
+                    <div className="absolute right-4 top-4 bg-blue-50 p-3 rounded-full text-blue-500"><FileText size={24} /></div>
                 </div>
 
-                <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500 flex flex-col justify-between h-32 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500 flex flex-col justify-between h-32 relative overflow-hidden">
                     <div>
                         <p className="text-gray-500 text-sm font-semibold mb-1">Valor Total</p>
                         <h3 className="text-2xl font-bold text-gray-800">{formatarMoeda(resumo.valorTotal)}</h3>
                     </div>
-                    <div className="absolute right-4 top-4 bg-green-50 p-3 rounded-full text-green-500 group-hover:bg-green-100 transition-colors"><DollarSign size={24} /></div>
+                    <div className="absolute right-4 top-4 bg-green-50 p-3 rounded-full text-green-500"><DollarSign size={24} /></div>
                 </div>
 
-                <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-yellow-500 flex flex-col justify-between h-32 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-yellow-500 flex flex-col justify-between h-32 relative overflow-hidden">
                     <div>
                         <p className="text-gray-500 text-sm font-semibold mb-1">Valor Pendente</p>
                         <h3 className="text-2xl font-bold text-yellow-600">{formatarMoeda(resumo.valorPendente)}</h3>
                     </div>
-                    <div className="absolute right-4 top-4 bg-yellow-50 p-3 rounded-full text-yellow-600 group-hover:bg-yellow-100 transition-colors"><Clock size={24} /></div>
+                    <div className="absolute right-4 top-4 bg-yellow-50 p-3 rounded-full text-yellow-600"><Clock size={24} /></div>
                 </div>
 
-                <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-800 flex flex-col justify-between h-32 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-800 flex flex-col justify-between h-32 relative overflow-hidden">
                     <div>
                         <p className="text-gray-500 text-sm font-semibold mb-1">Valor Pago</p>
                         <h3 className="text-2xl font-bold text-blue-900">{formatarMoeda(resumo.valorPago)}</h3>
                     </div>
-                    <div className="absolute right-4 top-4 bg-blue-50 p-3 rounded-full text-blue-800 group-hover:bg-blue-100 transition-colors"><CheckCircle size={24} /></div>
+                    <div className="absolute right-4 top-4 bg-blue-50 p-3 rounded-full text-blue-800"><CheckCircle size={24} /></div>
                 </div>
             </div>
 
@@ -221,7 +243,7 @@ export default function Dashboard() {
 
                 {/* Desconto/Abatimento */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border-b-4 border-purple-500 flex flex-col justify-between h-28 relative">
-                    <p className="text-gray-500 text-sm font-semibold">Desc/Abatimento</p>
+                    <p className="text-gray-500 text-sm font-semibold">Descont/Abatimento</p>
                     <h3 className="text-xl font-bold text-purple-600">{formatarMoeda(resumo.desconto)}</h3>
                     <div className="absolute right-4 top-4 text-purple-200"><TrendingDown size={20} /></div>
                 </div>
