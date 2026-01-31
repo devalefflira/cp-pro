@@ -10,7 +10,8 @@ import Tarefas from './pages/Tarefas';
 import Calculadoras from './pages/Calculadoras';
 import RelatorioDiarioPrint from './pages/RelatorioDiarioPrint';
 import Etiquetas from './pages/Etiquetas'; 
-import EtiquetasPrint from './pages/EtiquetasPrint'; // <--- O IMPORT ESTAVA AQUI?
+import EtiquetasPrint from './pages/EtiquetasPrint'; 
+import RelatorioPeriodoPrint from './pages/RelatorioPeriodoPrint'; // <--- IMPORTAR NOVO ARQUIVO
 
 function App() {
   return (
@@ -18,12 +19,12 @@ function App() {
       <Routes>
         <Route path="/" element={<Login />} />
         
-        {/* --- ROTAS DE IMPRESSÃO (SEM SIDEBAR) --- */}
-        {/* Verifique se esta linha existe no seu arquivo: */}
+        {/* --- ROTAS DE IMPRESSÃO --- */}
         <Route path="/print/etiquetas" element={<EtiquetasPrint />} /> 
         <Route path="/print/diario" element={<RelatorioDiarioPrint />} /> 
+        <Route path="/print/periodo" element={<RelatorioPeriodoPrint />} /> {/* <--- NOVA ROTA */}
 
-        {/* --- ROTAS DO SISTEMA (COM SIDEBAR) --- */}
+        {/* --- ROTAS DO SISTEMA --- */}
         <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
         <Route path="/incluir" element={<MainLayout><IncluirLancamento /></MainLayout>} />
         <Route path="/listagem" element={<MainLayout><Listagem /></MainLayout>} />
