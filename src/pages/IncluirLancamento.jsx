@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Save, Eraser, PlusCircle, CheckCircle, ChevronDown, Search, History, X } from 'lucide-react';
+import { Eraser, PlusCircle, CheckCircle, ChevronDown, Search, History, X } from 'lucide-react';
 
 // --- COMPONENTE CUSTOMIZADO: SELECT PESQUISÁVEL ---
 const SearchableSelect = ({ 
@@ -11,7 +11,7 @@ const SearchableSelect = ({
   onChange, 
   onNext, 
   placeholder, 
-  fieldKey, // 'nome' ou 'descricao'
+  fieldKey, 
   inputRef 
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -190,7 +190,6 @@ export default function IncluirLancamento() {
     }
   };
 
-  // --- FUNÇÕES AUXILIARES ---
   const formatarMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   const formatarData = (d) => d ? d.split('-').reverse().join('/') : '-';
 
@@ -206,7 +205,6 @@ export default function IncluirLancamento() {
     return data.toISOString().split('T')[0];
   };
 
-  // --- LÓGICA DO MODAL ÚLTIMOS LANÇAMENTOS ---
   const handleAbrirUltimos = async () => {
     const { data, error } = await supabase
       .from('lancamentos')
@@ -222,10 +220,21 @@ export default function IncluirLancamento() {
     }
   };
 
-  // --- SALVAMENTO ---
+  // --- VALIDAÇÃO E SALVAMENTO ---
   const executarSalvamento = async () => {
-    if (!form.data_vencimento || !form.valor || !form.fornecedor_id) {
-      alert("Preencha os campos obrigatórios (*)");
+    // Validação de TODOS os campos obrigatórios (exceto observação)
+    if (
+        !form.data_vencimento || 
+        !form.fornecedor_id ||
+        !form.tipo_documento_id ||
+        !form.numero_documento ||
+        !form.nota_fiscal ||
+        !form.parcela_id ||
+        !form.razao_id ||
+        !form.banco_id ||
+        !form.valor
+    ) {
+      alert("Por favor, preencha todos os campos obrigatórios (*)");
       return false;
     }
 
@@ -236,11 +245,12 @@ export default function IncluirLancamento() {
       ...form,
       data_vencimento: vencimentoReal,
       valor: parseFloat(form.valor),
-      fornecedor_id: form.fornecedor_id || null,
-      tipo_documento_id: form.tipo_documento_id || null,
-      parcela_id: form.parcela_id || null,
-      razao_id: form.razao_id || null,
-      banco_id: form.banco_id || null
+      // Removemos os '|| null' pois agora são obrigatórios, exceto observação
+      fornecedor_id: form.fornecedor_id,
+      tipo_documento_id: form.tipo_documento_id,
+      parcela_id: form.parcela_id,
+      razao_id: form.razao_id,
+      banco_id: form.banco_id
     }]);
 
     setLoading(false);
@@ -321,7 +331,7 @@ export default function IncluirLancamento() {
           {/* Tipo de Documento */}
           <SearchableSelect
             inputRef={refs.tipo}
-            label="Tipo de Documento"
+            label="Tipo de Documento *"
             placeholder="Selecione o tipo..."
             options={listas.tipos_documento}
             fieldKey="descricao"
@@ -332,7 +342,7 @@ export default function IncluirLancamento() {
 
           {/* Nº Documento */}
           <div>
-            <label className="block font-semibold text-gray-700 mb-1">Nº Documento</label>
+            <label className="block font-semibold text-gray-700 mb-1">Nº Documento *</label>
             <input 
               ref={refs.doc}
               type="text" 
@@ -346,7 +356,7 @@ export default function IncluirLancamento() {
 
           {/* Nota Fiscal */}
           <div>
-            <label className="block font-semibold text-gray-700 mb-1">Nota Fiscal</label>
+            <label className="block font-semibold text-gray-700 mb-1">Nota Fiscal *</label>
             <input 
               ref={refs.nf}
               type="text" 
@@ -361,7 +371,7 @@ export default function IncluirLancamento() {
           {/* Parcela */}
           <SearchableSelect
             inputRef={refs.parcela}
-            label="Parcela"
+            label="Parcela *"
             placeholder="Selecione..."
             options={listas.parcelas}
             fieldKey="descricao"
@@ -373,7 +383,7 @@ export default function IncluirLancamento() {
           {/* Razão / Centro de Custo */}
           <SearchableSelect
             inputRef={refs.razao}
-            label="Razão / Centro de Custo"
+            label="Razão / Centro de Custo *"
             placeholder="Selecione..."
             options={listas.razoes}
             fieldKey="nome"
@@ -385,7 +395,7 @@ export default function IncluirLancamento() {
           {/* Banco */}
           <SearchableSelect
             inputRef={refs.banco}
-            label="Banco"
+            label="Banco *"
             placeholder="Selecione..."
             options={listas.bancos}
             fieldKey="nome"
@@ -396,7 +406,7 @@ export default function IncluirLancamento() {
 
           {/* Status */}
           <div>
-            <label className="block font-semibold text-gray-700 mb-1">Status</label>
+            <label className="block font-semibold text-gray-700 mb-1">Status *</label>
             <select 
               ref={refs.status}
               name="status" 
@@ -427,7 +437,7 @@ export default function IncluirLancamento() {
             />
           </div>
 
-          {/* Observação */}
+          {/* Observação (Único opcional) */}
           <div>
             <label className="block font-semibold text-gray-700 mb-1">Observação</label>
             <textarea 
