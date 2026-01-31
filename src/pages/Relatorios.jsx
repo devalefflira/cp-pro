@@ -4,13 +4,8 @@ import { FileText, Users, ExternalLink, Calendar } from 'lucide-react';
 
 export default function Relatorios() {
   // --- ESTADOS ---
-  // 1. Relatório por Período
   const [range, setRange] = useState({ inicio: '', fim: '' });
-
-  // 2. Relatório Diário
   const [dia, setDia] = useState('');
-
-  // 3. Relatório Fornecedor
   const [filtrosFornecedor, setFiltrosFornecedor] = useState({
     inicio: '', fim: '', status: '', fornecedor_id: ''
   });
@@ -26,7 +21,7 @@ export default function Relatorios() {
 
   // --- AÇÕES ---
   
-  // 1. Ação Período (NOVA)
+  // 1. Ação Período
   const handleVisualizarPeriodo = () => {
     if (!range.inicio || !range.fim) return alert('Selecione as datas inicial e final!');
     window.open(`/print/periodo?inicio=${range.inicio}&fim=${range.fim}`, '_blank');
@@ -38,22 +33,28 @@ export default function Relatorios() {
     window.open(`/print/diario?data=${dia}`, '_blank');
   };
 
-  // 3. Ação Fornecedor (PDF direto mantido ou pode ser migrado futuramente)
-  const gerarPDFFornecedor = async () => {
-     alert("Funcionalidade mantida conforme anterior (ou pode solicitar migração também).");
-     // (Código de geração do PDF Fornecedor se mantém se você já o tinha, ou podemos implementar)
+  // 3. Ação Fornecedor (NOVA)
+  const handleVisualizarFornecedor = () => {
+    if (!filtrosFornecedor.inicio || !filtrosFornecedor.fim) {
+        return alert("Selecione o período (Início e Fim)!");
+    }
+    // Monta a URL com os parâmetros
+    let url = `/print/fornecedor?inicio=${filtrosFornecedor.inicio}&fim=${filtrosFornecedor.fim}`;
+    if (filtrosFornecedor.status) url += `&status=${filtrosFornecedor.status}`;
+    if (filtrosFornecedor.fornecedor_id) url += `&fornecedor_id=${filtrosFornecedor.fornecedor_id}`;
+    
+    window.open(url, '_blank');
   };
 
   return (
     <div className="space-y-10 pb-10">
       <h2 className="text-3xl font-bold text-primary">Relatórios</h2>
 
-      {/* BLOCO 1: TOTAL POR PERÍODO (ATUALIZADO) */}
+      {/* BLOCO 1: TOTAL POR PERÍODO */}
       <section className="bg-white p-6 rounded-lg shadow border border-blue-100">
         <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
           <Calendar className="text-secondary"/> Total por Período
         </h3>
-        
         <div className="flex flex-col md:flex-row items-end gap-4">
           <div>
             <label className="block text-sm text-gray-500 mb-1">Data Inicial</label>
@@ -63,17 +64,10 @@ export default function Relatorios() {
             <label className="block text-sm text-gray-500 mb-1">Data Final</label>
             <input type="date" className="p-2 border rounded w-full md:w-auto" value={range.fim} onChange={e => setRange({...range, fim: e.target.value})} />
           </div>
-          
-          <button 
-            onClick={handleVisualizarPeriodo} 
-            className="bg-[#0f172a] text-white px-6 py-2 rounded flex items-center gap-2 hover:bg-blue-900 shadow-lg transition-transform hover:scale-105"
-          >
+          <button onClick={handleVisualizarPeriodo} className="bg-[#0f172a] text-white px-6 py-2 rounded flex items-center gap-2 hover:bg-blue-900 shadow-lg transition-transform hover:scale-105">
             <ExternalLink size={18} /> Visualizar Relatório
           </button>
         </div>
-        <p className="text-sm text-gray-500 mt-2 italic">
-            Gera uma listagem completa do período selecionado com totais.
-        </p>
       </section>
 
       {/* BLOCO 2: RELATÓRIO DIÁRIO DETALHADO */}
@@ -81,28 +75,18 @@ export default function Relatorios() {
         <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
           <FileText className="text-secondary"/> Relatório Diário Detalhado
         </h3>
-
         <div className="flex items-end gap-4">
           <div className="flex-1 max-w-xs">
             <label className="block text-sm text-gray-500 mb-1">Selecione o Dia</label>
-            <input 
-              type="date" 
-              className="w-full p-2 border rounded" 
-              value={dia} 
-              onChange={(e) => setDia(e.target.value)} 
-            />
+            <input type="date" className="w-full p-2 border rounded" value={dia} onChange={(e) => setDia(e.target.value)} />
           </div>
-          
-          <button 
-            onClick={handleAbrirPreviewDiario} 
-            className="bg-[#0f172a] text-white px-6 py-2 rounded flex items-center gap-2 hover:bg-blue-900 shadow-lg transition-transform hover:scale-105"
-          >
+          <button onClick={handleAbrirPreviewDiario} className="bg-[#0f172a] text-white px-6 py-2 rounded flex items-center gap-2 hover:bg-blue-900 shadow-lg transition-transform hover:scale-105">
             <ExternalLink size={18} /> Visualizar Relatório
           </button>
         </div>
       </section>
 
-      {/* BLOCO 3: TOTALIZADOR POR FORNECEDOR (Mantido) */}
+      {/* BLOCO 3: TOTALIZADOR POR FORNECEDOR (ATUALIZADO) */}
       <section className="bg-white p-6 rounded-lg shadow border border-blue-100">
         <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
           <Users className="text-secondary"/> Relatório Totalizador por Fornecedor
@@ -142,10 +126,10 @@ export default function Relatorios() {
             </div>
             
             <button 
-                onClick={gerarPDFFornecedor}
-                className="bg-gray-800 text-white px-4 py-2 rounded flex items-center justify-center gap-2 hover:bg-gray-900 shadow-lg"
+                onClick={handleVisualizarFornecedor}
+                className="bg-[#0f172a] text-white px-4 py-2 rounded flex items-center justify-center gap-2 hover:bg-blue-900 shadow-lg transition-transform hover:scale-105"
             >
-              <FileText size={18} /> Exportar PDF
+              <ExternalLink size={18} /> Visualizar Relatório
             </button>
         </div>
       </section>

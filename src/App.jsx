@@ -11,7 +11,8 @@ import Calculadoras from './pages/Calculadoras';
 import RelatorioDiarioPrint from './pages/RelatorioDiarioPrint';
 import Etiquetas from './pages/Etiquetas'; 
 import EtiquetasPrint from './pages/EtiquetasPrint'; 
-import RelatorioPeriodoPrint from './pages/RelatorioPeriodoPrint'; // <--- IMPORTAR NOVO ARQUIVO
+import RelatorioPeriodoPrint from './pages/RelatorioPeriodoPrint';
+import RelatorioFornecedorPrint from './pages/RelatorioFornecedorPrint'; // <--- IMPORTAR
 
 function App() {
   return (
@@ -22,7 +23,8 @@ function App() {
         {/* --- ROTAS DE IMPRESSÃO --- */}
         <Route path="/print/etiquetas" element={<EtiquetasPrint />} /> 
         <Route path="/print/diario" element={<RelatorioDiarioPrint />} /> 
-        <Route path="/print/periodo" element={<RelatorioPeriodoPrint />} /> {/* <--- NOVA ROTA */}
+        <Route path="/print/periodo" element={<RelatorioPeriodoPrint />} /> 
+        <Route path="/print/fornecedor" element={<RelatorioFornecedorPrint />} /> {/* <--- NOVA ROTA */}
 
         {/* --- ROTAS DO SISTEMA --- */}
         <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
