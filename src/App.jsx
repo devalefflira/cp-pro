@@ -14,6 +14,7 @@ import EtiquetasPrint from './pages/EtiquetasPrint';
 import RelatorioPeriodoPrint from './pages/RelatorioPeriodoPrint';
 import RelatorioFornecedorPrint from './pages/RelatorioFornecedorPrint';
 import Planos from './pages/Planos'; // <--- IMPORTAÇÃO
+import Despesas from './pages/Despesas';
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
         
         {/* ROTA DE PLANOS (Pode ficar fora ou dentro do layout, coloquei fora para dar destaque total) */}
         <Route path="/planos" element={<Planos />} /> 
+        <Route path="/despesas" element={<MainLayout><Despesas /></MainLayout>} />
       </Routes>
     </BrowserRouter>
   );
