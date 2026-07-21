@@ -30,7 +30,7 @@ export default function Sidebar() {
   };
 
   const menuItems = [
-    { path: '/', label: 'Visão Geral', icon: LayoutDashboard },
+    { path: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard },
     { path: '/incluir', label: 'Incluir Lançamento', icon: PlusCircle },
     { path: '/listagem', label: 'Listagem', icon: List },
     { path: '/despesas', label: 'Despesas', icon: Wallet },
