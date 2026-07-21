@@ -4,14 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import { Trash2, Edit, ChevronLeft, ChevronRight, X, RotateCcw, History, FilePenLine, Search, ChevronDown, Save, MessageSquare, MessageCircle } from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 
-// --- COMPONENTE CUSTOMIZADO: SELECT PESQUISÁVEL ---
-const SearchableSelect = ({ 
-  label, 
-  options, 
-  value, 
-  onChange, 
-  placeholder, 
-  fieldKey 
+// --- COMPONENTE CUSTOMIZADO: SELECT PESQUISÁVEL (FORMULÁRIOS) ---
+const SearchableSelect = ({
+  label,
+  options,
+  value,
+  onChange,
+  placeholder,
+  fieldKey
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -26,7 +26,7 @@ const SearchableSelect = ({
     }
   }, [value, options, fieldKey]);
 
-  const filteredOptions = options.filter(opt => 
+  const filteredOptions = options.filter(opt =>
     opt[fieldKey].toLowerCase().includes(search.toLowerCase())
   );
 
@@ -59,11 +59,11 @@ const SearchableSelect = ({
           onChange={(e) => {
             setSearch(e.target.value);
             setIsOpen(true);
-            if(e.target.value === '') onChange('');
+            if (e.target.value === '') onChange('');
           }}
         />
         <div className="absolute right-3 top-3 text-gray-400 pointer-events-none">
-          {isOpen ? <Search size={20}/> : <ChevronDown size={20}/>}
+          {isOpen ? <Search size={20} /> : <ChevronDown size={20} />}
         </div>
       </div>
       {isOpen && filteredOptions.length > 0 && (
@@ -77,8 +77,84 @@ const SearchableSelect = ({
       )}
       {isOpen && filteredOptions.length === 0 && (
         <div className="absolute z-50 w-full bg-white border p-3 text-gray-500 italic shadow-lg">
-            Nenhum resultado encontrado.
+          Nenhum resultado encontrado.
         </div>
+      )}
+    </div>
+  );
+};
+
+// --- COMPONENTE CUSTOMIZADO: FILTRO PESQUISÁVEL (LISTAGEM) ---
+const FiltroPesquisavel = ({ options, value, onChange, placeholder }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    if (!value) {
+      setSearch('');
+    } else {
+      const selected = options.find(o => o.id === value || o.nome === value);
+      if (selected) setSearch(selected.nome);
+    }
+  }, [value, options]);
+
+  const filteredOptions = options.filter(opt =>
+    opt.nome.toLowerCase().includes(search.toLowerCase())
+  );
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) setIsOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [wrapperRef]);
+
+  return (
+    <div className="relative w-full" ref={wrapperRef}>
+      <div className="relative">
+        <input
+          type="text"
+          className="w-full p-2 border rounded bg-white focus:ring-2 focus:ring-secondary outline-none pr-8 text-sm"
+          placeholder={placeholder}
+          value={search}
+          onClick={() => setIsOpen(true)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setIsOpen(true);
+            if (e.target.value === '') onChange(''); 
+          }}
+        />
+        <div className="absolute right-2 top-2.5 text-gray-400 pointer-events-none">
+          {isOpen ? <Search size={16} /> : <ChevronDown size={16} />}
+        </div>
+      </div>
+
+      {isOpen && (
+        <ul className="absolute z-50 w-full bg-white border border-gray-200 mt-1 max-h-60 overflow-y-auto rounded shadow-lg text-sm">
+          <li
+            onClick={() => { onChange(''); setSearch(''); setIsOpen(false); }}
+            className="p-2 hover:bg-gray-100 cursor-pointer border-b text-gray-600 italic"
+          >
+            Todos os Fornecedores
+          </li>
+          {filteredOptions.length > 0 ? filteredOptions.map((opt) => (
+            <li
+              key={opt.id}
+              onClick={() => {
+                onChange(opt.id);
+                setSearch(opt.nome);
+                setIsOpen(false);
+              }}
+              className="p-2 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-0 text-gray-700"
+            >
+              {opt.nome}
+            </li>
+          )) : (
+            <li className="p-2 text-gray-400 italic">Nenhum encontrado.</li>
+          )}
+        </ul>
       )}
     </div>
   );
@@ -88,7 +164,7 @@ export default function Listagem() {
   const navigate = useNavigate();
   const [lancamentos, setLancamentos] = useState([]);
   const [loading, setLoading] = useState(false);
-  
+
   // Listas Auxiliares
   const [listas, setListas] = useState({
     fornecedores: [], tipos_documento: [], bancos: [], razoes: [], parcelas: []
@@ -96,9 +172,9 @@ export default function Listagem() {
 
   // Filtros
   const filtrosIniciais = {
-    dataInicio: '', dataFim: '', fornecedor_id: '', tipo_documento_id: '', banco_id: '', 
+    dataInicio: '', dataFim: '', fornecedor_id: '', tipo_documento_id: '', banco_id: '',
     valorMin: '', valorMax: '', notaFiscal: '', numDocumento: '', status: '',
-    comObservacao: false 
+    comObservacao: false
   };
   const [filtros, setFiltros] = useState(filtrosIniciais);
 
@@ -109,7 +185,7 @@ export default function Listagem() {
 
   // Modais
   const [modalAberto, setModalAberto] = useState(false);
-  const [lancamentoEdicao, setLancamentoEdicao] = useState(null); 
+  const [lancamentoEdicao, setLancamentoEdicao] = useState(null);
   const [dadosPagamento, setDadosPagamento] = useState({ valor_pago: '', data_pagamento: '', juros: 0, desconto: 0, dias_atraso: 0 });
   const [modalEditarAberto, setModalEditarAberto] = useState(false);
   const [formEditar, setFormEditar] = useState({});
@@ -139,33 +215,33 @@ export default function Listagem() {
   const buscarLancamentos = async () => {
     setLoading(true);
     try {
-        let query = supabase.from('lancamentos').select(`*, fornecedores(nome), tipos_documento(descricao), bancos(nome), razoes(nome), parcelas(descricao)`, { count: 'exact' });
+      let query = supabase.from('lancamentos').select(`*, fornecedores(nome), tipos_documento(descricao), bancos(nome), razoes(nome), parcelas(descricao)`, { count: 'exact' });
 
-        if (filtros.dataInicio) query = query.gte('data_vencimento', filtros.dataInicio);
-        if (filtros.dataFim) query = query.lte('data_vencimento', filtros.dataFim);
-        if (filtros.fornecedor_id) query = query.eq('fornecedor_id', filtros.fornecedor_id);
-        if (filtros.tipo_documento_id) query = query.eq('tipo_documento_id', filtros.tipo_documento_id);
-        if (filtros.banco_id) query = query.eq('banco_id', filtros.banco_id);
-        if (filtros.comObservacao) query = query.neq('observacao', ''); 
-        if (filtros.valorMin) query = query.gte('valor', filtros.valorMin);
-        if (filtros.valorMax) query = query.lte('valor', filtros.valorMax);
-        if (filtros.notaFiscal) query = query.ilike('nota_fiscal', `%${filtros.notaFiscal}%`);
-        if (filtros.numDocumento) query = query.ilike('numero_documento', `%${filtros.numDocumento}%`);
-        if (filtros.status) query = query.eq('status', filtros.status);
+      if (filtros.dataInicio) query = query.gte('data_vencimento', filtros.dataInicio);
+      if (filtros.dataFim) query = query.lte('data_vencimento', filtros.dataFim);
+      if (filtros.fornecedor_id) query = query.eq('fornecedor_id', filtros.fornecedor_id);
+      if (filtros.tipo_documento_id) query = query.eq('tipo_documento_id', filtros.tipo_documento_id);
+      if (filtros.banco_id) query = query.eq('banco_id', filtros.banco_id);
+      if (filtros.comObservacao) query = query.neq('observacao', '');
+      if (filtros.valorMin) query = query.gte('valor', filtros.valorMin);
+      if (filtros.valorMax) query = query.lte('valor', filtros.valorMax);
+      if (filtros.notaFiscal) query = query.ilike('nota_fiscal', `%${filtros.notaFiscal}%`);
+      if (filtros.numDocumento) query = query.ilike('numero_documento', `%${filtros.numDocumento}%`);
+      if (filtros.status) query = query.eq('status', filtros.status);
 
-        const inicio = (pagina - 1) * itensPorPagina;
-        const fim = inicio + itensPorPagina - 1;
-        query = query.range(inicio, fim).order('data_vencimento', { ascending: false });
+      const inicio = (pagina - 1) * itensPorPagina;
+      const fim = inicio + itensPorPagina - 1;
+      query = query.range(inicio, fim).order('data_vencimento', { ascending: false });
 
-        const { data, count, error } = await query;
-        if (error) throw error;
-        setLancamentos(data || []);
-        setTotalItens(count || 0);
+      const { data, count, error } = await query;
+      if (error) throw error;
+      setLancamentos(data || []);
+      setTotalItens(count || 0);
     } catch (error) {
-        console.error("Erro detalhado:", error);
-        alert('Erro ao buscar dados: ' + (error.message || "Erro desconhecido"));
+      console.error("Erro detalhado:", error);
+      alert('Erro ao buscar dados: ' + (error.message || "Erro desconhecido"));
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -222,11 +298,11 @@ export default function Listagem() {
     else if (valorPago < valorOriginal) desconto = valorOriginal - valorPago;
     let diasAtraso = 0;
     if (dadosPagamento.data_pagamento && lancamentoEdicao.data_vencimento) {
-        diasAtraso = differenceInDays(parseISO(dadosPagamento.data_pagamento), parseISO(lancamentoEdicao.data_vencimento));
+      diasAtraso = differenceInDays(parseISO(dadosPagamento.data_pagamento), parseISO(lancamentoEdicao.data_vencimento));
     }
     setDadosPagamento(prev => {
-        if (prev.juros === juros && prev.desconto === desconto && prev.dias_atraso === diasAtraso) return prev;
-        return { ...prev, juros, desconto, dias_atraso: diasAtraso };
+      if (prev.juros === juros && prev.desconto === desconto && prev.dias_atraso === diasAtraso) return prev;
+      return { ...prev, juros, desconto, dias_atraso: diasAtraso };
     });
   }, [dadosPagamento.valor_pago, dadosPagamento.data_pagamento, lancamentoEdicao, modalAberto]);
 
@@ -262,8 +338,8 @@ export default function Listagem() {
   };
 
   return (
-    <div className="space-y-6 relative w-full"> {/* Garante largura total */}
-      
+    <div className="space-y-6 relative w-full">
+
       {/* CABEÇALHO */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <h2 className="text-3xl font-bold text-primary">Listagem</h2>
@@ -272,50 +348,52 @@ export default function Listagem() {
         </button>
       </div>
 
-      {/* FILTROS (Compactado) */}
+      {/* FILTROS */}
       <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
-          <input type="date" className="p-2 border rounded" value={filtros.dataInicio} onChange={e => setFiltros({...filtros, dataInicio: e.target.value})} />
-          <input type="date" className="p-2 border rounded" value={filtros.dataFim} onChange={e => setFiltros({...filtros, dataFim: e.target.value})} />
-          <select className="p-2 border rounded" value={filtros.fornecedor_id} onChange={e => setFiltros({...filtros, fornecedor_id: e.target.value})}>
-            <option value="">Todos Fornecedores</option>
-            {listas.fornecedores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
-          </select>
-          <select className="p-2 border rounded" value={filtros.tipo_documento_id} onChange={e => setFiltros({...filtros, tipo_documento_id: e.target.value})}>
+          <input type="date" className="p-2 border rounded" value={filtros.dataInicio} onChange={e => setFiltros({ ...filtros, dataInicio: e.target.value })} />
+          <input type="date" className="p-2 border rounded" value={filtros.dataFim} onChange={e => setFiltros({ ...filtros, dataFim: e.target.value })} />
+          
+          <div className="w-full">
+            <FiltroPesquisavel
+              options={listas.fornecedores}
+              value={filtros.fornecedor_id}
+              onChange={(val) => setFiltros({ ...filtros, fornecedor_id: val })}
+              placeholder="Todos Fornecedores"
+            />
+          </div>
+
+          <select className="p-2 border rounded" value={filtros.tipo_documento_id} onChange={e => setFiltros({ ...filtros, tipo_documento_id: e.target.value })}>
             <option value="">Todos Tipos Doc</option>
             {listas.tipos_documento.map(t => <option key={t.id} value={t.id}>{t.descricao}</option>)}
           </select>
-          <select className="p-2 border rounded" value={filtros.banco_id} onChange={e => setFiltros({...filtros, banco_id: e.target.value})}>
+          <select className="p-2 border rounded" value={filtros.banco_id} onChange={e => setFiltros({ ...filtros, banco_id: e.target.value })}>
             <option value="">Todos Bancos</option>
             {listas.bancos.map(b => <option key={b.id} value={b.id}>{b.nome}</option>)}
           </select>
-          <input type="number" placeholder="Valor Mín" className="p-2 border rounded" value={filtros.valorMin} onChange={e => setFiltros({...filtros, valorMin: e.target.value})} />
-          <input type="number" placeholder="Valor Máx" className="p-2 border rounded" value={filtros.valorMax} onChange={e => setFiltros({...filtros, valorMax: e.target.value})} />
-          <input type="text" placeholder="Buscar NF" className="p-2 border rounded" value={filtros.notaFiscal} onChange={e => setFiltros({...filtros, notaFiscal: e.target.value})} />
-          <input type="text" placeholder="Buscar Nº Doc" className="p-2 border rounded" value={filtros.numDocumento} onChange={e => setFiltros({...filtros, numDocumento: e.target.value})} />
-          
+          <input type="number" placeholder="Valor Mín" className="p-2 border rounded" value={filtros.valorMin} onChange={e => setFiltros({ ...filtros, valorMin: e.target.value })} />
+          <input type="number" placeholder="Valor Máx" className="p-2 border rounded" value={filtros.valorMax} onChange={e => setFiltros({ ...filtros, valorMax: e.target.value })} />
+          <input type="text" placeholder="Buscar NF" className="p-2 border rounded" value={filtros.notaFiscal} onChange={e => setFiltros({ ...filtros, notaFiscal: e.target.value })} />
+          <input type="text" placeholder="Buscar Nº Doc" className="p-2 border rounded" value={filtros.numDocumento} onChange={e => setFiltros({ ...filtros, numDocumento: e.target.value })} />
+
           <div className="flex items-center gap-2 lg:col-span-3">
-             <select className="p-2 border rounded font-semibold text-gray-700 w-full md:w-auto" value={filtros.status} onChange={e => setFiltros({...filtros, status: e.target.value})}>
-                <option value="">STATUS (Todos)</option>
-                <option value="Pendente">PENDENTE</option>
-                <option value="Pago">PAGO</option>
+            <select className="p-2 border rounded font-semibold text-gray-700 w-full md:w-auto" value={filtros.status} onChange={e => setFiltros({ ...filtros, status: e.target.value })}>
+              <option value="">STATUS (Todos)</option>
+              <option value="Pendente">PENDENTE</option>
+              <option value="Pago">PAGO</option>
             </select>
-             <button onClick={() => setFiltros({...filtros, comObservacao: !filtros.comObservacao})} className={`px-3 py-2 rounded-full font-bold text-xs border ${filtros.comObservacao ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
-                {filtros.comObservacao ? 'Com Obs' : 'Obs'}
-             </button>
-             <button onClick={handleLimparFiltros} className="text-red-500 hover:bg-red-50 px-3 py-2 rounded text-xs flex items-center gap-1"><X size={14} /> Limpar</button>
+            <button onClick={() => setFiltros({ ...filtros, comObservacao: !filtros.comObservacao })} className={`px-3 py-2 rounded-full font-bold text-xs border ${filtros.comObservacao ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
+              {filtros.comObservacao ? 'Com Obs' : 'Obs'}
+            </button>
+            <button onClick={handleLimparFiltros} className="text-red-500 hover:bg-red-50 px-3 py-2 rounded text-xs flex items-center gap-1"><X size={14} /> Limpar</button>
           </div>
         </div>
       </div>
 
       {/* TABELA RESPONSIVA */}
-      {/* CORREÇÃO PRINCIPAL: 
-         max-w-full impede que o container cresça além da tela.
-         overflow-x-auto habilita o scroll interno.
-      */}
       <div className="bg-white rounded-lg shadow-md border border-gray-200 w-full max-w-full overflow-hidden">
-        <div className="overflow-x-auto w-full"> 
-          <table className="w-full text-left border-collapse whitespace-nowrap"> 
+        <div className="overflow-x-auto w-full">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead className="bg-gray-50 text-gray-600 font-semibold text-xs uppercase tracking-wider">
               <tr>
                 <th className="px-3 py-3 border-b">Vencimento</th>
@@ -334,19 +412,19 @@ export default function Listagem() {
                 <th className="px-3 py-3 border-b bg-blue-50 text-blue-800">Desc</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-xs"> {/* Fonte reduzida para text-xs */}
-              {loading ? <tr><td colSpan="14" className="p-8 text-center">Carregando...</td></tr> : 
-               lancamentos.map((l) => (
+            <tbody className="divide-y divide-gray-100 text-xs">
+              {loading ? <tr><td colSpan="14" className="p-8 text-center">Carregando...</td></tr> :
+                lancamentos.map((l) => (
                   <tr key={l.id} className="hover:bg-blue-50 transition-colors">
                     <td className="px-3 py-3 font-medium text-gray-700">
-                        <div className="flex items-center gap-1">
-                            {formatarData(l.data_vencimento)}
-                            {l.observacao && l.observacao.trim() !== '' && (
-                                <button onClick={() => handleAbrirObs(l.observacao)} className="text-blue-500 hover:bg-blue-100 p-0.5 rounded-full">
-                                    <MessageCircle size={14} fill="currentColor" className="opacity-80"/>
-                                </button>
-                            )}
-                        </div>
+                      <div className="flex items-center gap-1">
+                        {formatarData(l.data_vencimento)}
+                        {l.observacao && l.observacao.trim() !== '' && (
+                          <button onClick={() => handleAbrirObs(l.observacao)} className="text-blue-500 hover:bg-blue-100 p-0.5 rounded-full">
+                            <MessageCircle size={14} fill="currentColor" className="opacity-80" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-3 font-bold uppercase text-gray-900">{l.fornecedores?.nome}</td>
                     <td className="px-3 py-3 text-gray-600">{l.tipos_documento?.descricao}</td>
@@ -357,7 +435,7 @@ export default function Listagem() {
                     <td className="px-3 py-3 text-gray-600">{l.bancos?.nome || 'N/A'}</td>
                     <td className={`px-3 py-3 font-bold ${l.status === 'Pago' ? 'text-green-600' : 'text-red-500'}`}>{formatarMoeda(l.valor)}</td>
                     <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${l.status === 'Pago' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{l.status}</span></td>
-                    
+
                     <td className="px-3 py-3">
                       <div className="flex justify-center gap-1">
                         <button onClick={() => handleAbrirModalPagamento(l)} className="p-1 text-green-600 hover:bg-green-100 rounded border border-green-200"><Edit size={14} /></button>
@@ -370,7 +448,7 @@ export default function Listagem() {
                     <td className="px-3 py-3 text-red-600 bg-gray-50/50">{l.juros > 0 ? formatarMoeda(l.juros) : '-'}</td>
                     <td className="px-3 py-3 text-green-600 bg-gray-50/50">{l.desconto > 0 ? formatarMoeda(l.desconto) : '-'}</td>
                   </tr>
-              ))}
+                ))}
             </tbody>
           </table>
         </div>
@@ -383,37 +461,37 @@ export default function Listagem() {
       {/* MODAL OBSERVAÇÃO */}
       {modalObsAberto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-            <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md relative border border-gray-100">
-                <button onClick={() => setModalObsAberto(false)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500"><X size={24} /></button>
-                <h3 className="text-xl font-bold text-primary mb-4 flex items-center gap-2"><MessageCircle size={24} /> Observação</h3>
-                <div className="bg-blue-50 p-4 rounded-lg text-gray-700 text-lg leading-relaxed whitespace-pre-wrap">{textoObs}</div>
-                <div className="mt-6 flex justify-end"><button onClick={() => setModalObsAberto(false)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-2 rounded-lg font-bold">Fechar</button></div>
-            </div>
+          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-md relative border border-gray-100">
+            <button onClick={() => setModalObsAberto(false)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500"><X size={24} /></button>
+            <h3 className="text-xl font-bold text-primary mb-4 flex items-center gap-2"><MessageCircle size={24} /> Observação</h3>
+            <div className="bg-blue-50 p-4 rounded-lg text-gray-700 text-lg leading-relaxed whitespace-pre-wrap">{textoObs}</div>
+            <div className="mt-6 flex justify-end"><button onClick={() => setModalObsAberto(false)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-2 rounded-lg font-bold">Fechar</button></div>
+          </div>
         </div>
       )}
 
-      {/* MODAL PAGAMENTO (Mantido) */}
+      {/* MODAL PAGAMENTO */}
       {modalAberto && lancamentoEdicao && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
           <div className="bg-[#D0E8F2] p-8 rounded-2xl shadow-2xl w-full max-w-2xl border-4 border-white relative max-h-[90vh] overflow-y-auto">
-             <div className="flex justify-between items-center mb-6">
-                 <h3 className="text-2xl font-bold text-primary">Baixar Documento</h3>
-                 <button onClick={() => setModalAberto(false)} className="text-gray-500 hover:text-red-500"><X size={24}/></button>
-             </div>
-             <p className="text-gray-800 text-lg mb-6 leading-relaxed">
-              Vencimento <strong>{formatarData(lancamentoEdicao.data_vencimento)}</strong>, 
-              Fornecedor <strong>{lancamentoEdicao.fornecedores?.nome}</strong>, 
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-primary">Baixar Documento</h3>
+              <button onClick={() => setModalAberto(false)} className="text-gray-500 hover:text-red-500"><X size={24} /></button>
+            </div>
+            <p className="text-gray-800 text-lg mb-6 leading-relaxed">
+              Vencimento <strong>{formatarData(lancamentoEdicao.data_vencimento)}</strong>,
+              Fornecedor <strong>{lancamentoEdicao.fornecedores?.nome}</strong>,
               Valor <strong>{formatarMoeda(lancamentoEdicao.valor)}</strong>
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <div className="flex flex-col"><label className="font-bold text-lg mb-1">Valor pago</label><input type="number" step="0.01" className="p-3 rounded-lg border-none shadow-sm text-xl font-bold" value={dadosPagamento.valor_pago} onChange={e => setDadosPagamento({...dadosPagamento, valor_pago: e.target.value})} /></div>
-              <div className="flex flex-col"><label className="font-bold text-lg mb-1">Data Pagamento</label><input type="date" className="p-3 rounded-lg border-none shadow-sm text-lg" value={dadosPagamento.data_pagamento} onChange={e => setDadosPagamento({...dadosPagamento, data_pagamento: e.target.value})} /></div>
+              <div className="flex flex-col"><label className="font-bold text-lg mb-1">Valor pago</label><input type="number" step="0.01" className="p-3 rounded-lg border-none shadow-sm text-xl font-bold" value={dadosPagamento.valor_pago} onChange={e => setDadosPagamento({ ...dadosPagamento, valor_pago: e.target.value })} /></div>
+              <div className="flex flex-col"><label className="font-bold text-lg mb-1">Data Pagamento</label><input type="date" className="p-3 rounded-lg border-none shadow-sm text-lg" value={dadosPagamento.data_pagamento} onChange={e => setDadosPagamento({ ...dadosPagamento, data_pagamento: e.target.value })} /></div>
               <div className="flex flex-col"><label className="font-bold text-lg mb-1">Juros/Multa</label><div className="p-3 rounded-lg bg-gray-200 text-gray-600 text-lg font-bold border border-gray-300">{formatarMoeda(dadosPagamento.juros)}</div></div>
               <div className="flex flex-col"><label className="font-bold text-lg mb-1 text-right">Desconto</label><div className="p-3 rounded-lg bg-gray-200 text-gray-600 text-lg font-bold border border-gray-300 text-right">{formatarMoeda(dadosPagamento.desconto)}</div></div>
               <div className="flex flex-col col-start-2"><label className="font-bold text-lg mb-1 text-right">Dias Atraso</label><div className={`p-3 rounded-lg text-lg font-bold border border-gray-300 text-right ${dadosPagamento.dias_atraso > 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{dadosPagamento.dias_atraso}</div></div>
             </div>
             <div className="flex flex-col md:flex-row justify-between items-center pt-4 border-t border-blue-200 gap-4">
-               <button onClick={handleEstornar} className="bg-[#8B5CF6] hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-transform hover:scale-105 flex items-center gap-2 w-full md:w-auto justify-center"><RotateCcw size={20} /> Estornar</button>
+              <button onClick={handleEstornar} className="bg-[#8B5CF6] hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-transform hover:scale-105 flex items-center gap-2 w-full md:w-auto justify-center"><RotateCcw size={20} /> Estornar</button>
               <div className="flex gap-4 w-full md:w-auto justify-center">
                 <button onClick={() => setModalAberto(false)} className="bg-[#EF4444] hover:bg-red-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-transform hover:scale-105">Cancelar</button>
                 <button onClick={handleSalvarPagamento} className="bg-[#3B82F6] hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-transform hover:scale-105">Salvar</button>
@@ -426,24 +504,24 @@ export default function Listagem() {
       {/* MODAL EDIÇÃO */}
       {modalEditarAberto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-            <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-2xl border border-gray-200 relative max-h-[90vh] overflow-y-auto">
-                <button onClick={() => setModalEditarAberto(false)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500"><X size={24}/></button>
-                <h3 className="text-2xl font-bold text-primary mb-6 text-center">Editar Lançamento</h3>
-                <form className="flex flex-col gap-4">
-                    <div><label className="block font-semibold text-gray-700 mb-1">Data Vencimento *</label><input type="date" value={formEditar.data_vencimento} onChange={e => setFormEditar({...formEditar, data_vencimento: e.target.value})} className="w-full p-3 border rounded bg-gray-50 focus:ring-2 focus:ring-secondary outline-none"/></div>
-                    <SearchableSelect label="Fornecedor *" placeholder="Buscar..." options={listas.fornecedores} fieldKey="nome" value={formEditar.fornecedor_id} onChange={(val) => setFormEditar({...formEditar, fornecedor_id: val})}/>
-                    <SearchableSelect label="Tipo *" placeholder="Selecione..." options={listas.tipos_documento} fieldKey="descricao" value={formEditar.tipo_documento_id} onChange={(val) => setFormEditar({...formEditar, tipo_documento_id: val})}/>
-                    <div><label className="block font-semibold text-gray-700 mb-1">Nº Doc</label><input type="text" value={formEditar.numero_documento} onChange={e => setFormEditar({...formEditar, numero_documento: e.target.value})} className="w-full p-3 border rounded bg-gray-50 outline-none" /></div>
-                    <div><label className="block font-semibold text-gray-700 mb-1">NF</label><input type="text" value={formEditar.nota_fiscal} onChange={e => setFormEditar({...formEditar, nota_fiscal: e.target.value})} className="w-full p-3 border rounded bg-gray-50 outline-none" /></div>
-                    <SearchableSelect label="Parcela" placeholder="Selecione..." options={listas.parcelas} fieldKey="descricao" value={formEditar.parcela_id} onChange={(val) => setFormEditar({...formEditar, parcela_id: val})} />
-                    <SearchableSelect label="Razão" placeholder="Selecione..." options={listas.razoes} fieldKey="nome" value={formEditar.razao_id} onChange={(val) => setFormEditar({...formEditar, razao_id: val})} />
-                    <SearchableSelect label="Banco" placeholder="Selecione..." options={listas.bancos} fieldKey="nome" value={formEditar.banco_id} onChange={(val) => setFormEditar({...formEditar, banco_id: val})} />
-                    <div><label className="block font-semibold text-gray-700 mb-1">Status</label><select value={formEditar.status} onChange={e => setFormEditar({...formEditar, status: e.target.value})} className="w-full p-3 border rounded font-bold outline-none"><option value="Pendente">Pendente</option><option value="Pago">Pago</option></select></div>
-                    <div><label className="block font-semibold text-gray-700 mb-1">Valor *</label><input type="number" step="0.01" value={formEditar.valor} onChange={e => setFormEditar({...formEditar, valor: e.target.value})} className="w-full p-3 border rounded bg-gray-50 text-xl font-mono outline-none" /></div>
-                    <div><label className="block font-semibold text-gray-700 mb-1">Observação</label><textarea rows="3" value={formEditar.observacao} onChange={e => setFormEditar({...formEditar, observacao: e.target.value})} className="w-full p-3 border rounded bg-gray-50 outline-none"></textarea></div>
-                    <div className="flex justify-end gap-4 mt-6 pt-6 border-t"><button type="button" onClick={() => setModalEditarAberto(false)} className="px-6 py-3 border border-gray-300 rounded text-gray-600 hover:bg-gray-100 font-semibold">Cancelar</button><button type="button" onClick={handleSalvarEdicao} className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded font-bold shadow transition-colors"><Save size={20} /> Salvar</button></div>
-                </form>
-            </div>
+          <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-2xl border border-gray-200 relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setModalEditarAberto(false)} className="absolute top-4 right-4 text-gray-400 hover:text-red-500"><X size={24} /></button>
+            <h3 className="text-2xl font-bold text-primary mb-6 text-center">Editar Lançamento</h3>
+            <form className="flex flex-col gap-4">
+              <div><label className="block font-semibold text-gray-700 mb-1">Data Vencimento *</label><input type="date" value={formEditar.data_vencimento} onChange={e => setFormEditar({ ...formEditar, data_vencimento: e.target.value })} className="w-full p-3 border rounded bg-gray-50 focus:ring-2 focus:ring-secondary outline-none" /></div>
+              <SearchableSelect label="Fornecedor *" placeholder="Buscar..." options={listas.fornecedores} fieldKey="nome" value={formEditar.fornecedor_id} onChange={(val) => setFormEditar({ ...formEditar, fornecedor_id: val })} />
+              <SearchableSelect label="Tipo *" placeholder="Selecione..." options={listas.tipos_documento} fieldKey="descricao" value={formEditar.tipo_documento_id} onChange={(val) => setFormEditar({ ...formEditar, tipo_documento_id: val })} />
+              <div><label className="block font-semibold text-gray-700 mb-1">Nº Doc</label><input type="text" value={formEditar.numero_documento} onChange={e => setFormEditar({ ...formEditar, numero_documento: e.target.value })} className="w-full p-3 border rounded bg-gray-50 outline-none" /></div>
+              <div><label className="block font-semibold text-gray-700 mb-1">NF</label><input type="text" value={formEditar.nota_fiscal} onChange={e => setFormEditar({ ...formEditar, nota_fiscal: e.target.value })} className="w-full p-3 border rounded bg-gray-50 outline-none" /></div>
+              <SearchableSelect label="Parcela" placeholder="Selecione..." options={listas.parcelas} fieldKey="descricao" value={formEditar.parcela_id} onChange={(val) => setFormEditar({ ...formEditar, parcela_id: val })} />
+              <SearchableSelect label="Razão" placeholder="Selecione..." options={listas.razoes} fieldKey="nome" value={formEditar.razao_id} onChange={(val) => setFormEditar({ ...formEditar, razao_id: val })} />
+              <SearchableSelect label="Banco" placeholder="Selecione..." options={listas.bancos} fieldKey="nome" value={formEditar.banco_id} onChange={(val) => setFormEditar({ ...formEditar, banco_id: val })} />
+              <div><label className="block font-semibold text-gray-700 mb-1">Status</label><select value={formEditar.status} onChange={e => setFormEditar({ ...formEditar, status: e.target.value })} className="w-full p-3 border rounded font-bold outline-none"><option value="Pendente">Pendente</option><option value="Pago">Pago</option></select></div>
+              <div><label className="block font-semibold text-gray-700 mb-1">Valor *</label><input type="number" step="0.01" value={formEditar.valor} onChange={e => setFormEditar({ ...formEditar, valor: e.target.value })} className="w-full p-3 border rounded bg-gray-50 text-xl font-mono outline-none" /></div>
+              <div><label className="block font-semibold text-gray-700 mb-1">Observação</label><textarea rows="3" value={formEditar.observacao} onChange={e => setFormEditar({ ...formEditar, observacao: e.target.value })} className="w-full p-3 border rounded bg-gray-50 outline-none"></textarea></div>
+              <div className="flex justify-end gap-4 mt-6 pt-6 border-t"><button type="button" onClick={() => setModalEditarAberto(false)} className="px-6 py-3 border border-gray-300 rounded text-gray-600 hover:bg-gray-100 font-semibold">Cancelar</button><button type="button" onClick={handleSalvarEdicao} className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded font-bold shadow transition-colors"><Save size={20} /> Salvar</button></div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -456,8 +534,8 @@ export default function Listagem() {
             <div className="space-y-3">
               {ultimosLancamentos.map((l) => (
                 <div key={l.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 hover:bg-blue-50 transition-colors">
-                   <div className="flex justify-between items-start mb-2"><p className="font-bold text-gray-800 text-lg">{l.fornecedores?.nome}</p><span className={`px-2 py-1 rounded text-xs font-bold ${l.status === 'Pago' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{l.status}</span></div>
-                   <div className="flex justify-between items-center text-sm"><p className="text-gray-500">{l.tipos_documento?.descricao} • {formatarData(l.data_vencimento)}</p><p className="font-bold text-primary text-base">{formatarMoeda(l.valor)}</p></div>
+                  <div className="flex justify-between items-start mb-2"><p className="font-bold text-gray-800 text-lg">{l.fornecedores?.nome}</p><span className={`px-2 py-1 rounded text-xs font-bold ${l.status === 'Pago' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{l.status}</span></div>
+                  <div className="flex justify-between items-center text-sm"><p className="text-gray-500">{l.tipos_documento?.descricao} • {formatarData(l.data_vencimento)}</p><p className="font-bold text-primary text-base">{formatarMoeda(l.valor)}</p></div>
                 </div>
               ))}
             </div>
