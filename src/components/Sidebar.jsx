@@ -1,67 +1,132 @@
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, PlusCircle, List, FileText, Settings, LogOut, CheckSquare, Calculator, Tag, Crown, Zap, Wallet } from 'lucide-react';
 import { supabase } from '../services/supabase';
-import { differenceInDays, addDays, startOfDay } from 'date-fns';
+import { 
+  LayoutDashboard, 
+  PlusCircle, 
+  List, 
+  Wallet, 
+  FileText, 
+  Tag, 
+  CheckSquare, 
+  Calculator, 
+  Settings, 
+  Crown, 
+  LogOut, 
+  ChevronLeft, 
+  ChevronRight 
+} from 'lucide-react';
 
 export default function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useState(false);
 
-  // --- CÁLCULO DO PERÍODO DE TESTE ---
-  const dataInicioTeste = new Date(2026, 0, 31); // 31/01/2026 (Mês 0 = Janeiro)
-  const diasTotais = 90;
-  const dataFimTeste = addDays(dataInicioTeste, diasTotais);
-  const hoje = startOfDay(new Date());
-
-  const diasRestantes = differenceInDays(dataFimTeste, hoje);
-  // Calcula porcentagem para a barra de progresso (Inverso: quanto menos dias, mais cheia ou vazia, depende do design. Aqui: começa cheia e esvazia)
-  const porcentagemRestante = Math.max(0, Math.min(100, (diasRestantes / diasTotais) * 100));
+  const isActive = (path) => location.pathname === path;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/');
+    navigate('/login');
   };
 
-  const isActive = (path) => location.pathname === path ? "bg-secondary" : "hover:bg-blue-800";
+  const menuItems = [
+    { path: '/', label: 'Visão Geral', icon: LayoutDashboard },
+    { path: '/incluir', label: 'Incluir Lançamento', icon: PlusCircle },
+    { path: '/listagem', label: 'Listagem', icon: List },
+    { path: '/despesas', label: 'Despesas', icon: Wallet },
+    { path: '/relatorios', label: 'Relatórios', icon: FileText },
+    { path: '/etiquetas', label: 'Etiquetas', icon: Tag },
+    { path: '/tarefas', label: 'Tarefas', icon: CheckSquare },
+    { path: '/calculadoras', label: 'Calculadoras', icon: Calculator },
+    { path: '/grupos', label: 'Cadastros Auxiliares', icon: Settings },
+  ];
 
   return (
-    <div className="bg-primary text-white w-64 min-h-screen flex flex-col p-4">
-      <h1 className="text-2xl font-bold mb-8 text-center tracking-wider border-b border-blue-800 pb-4">CP PRO</h1>
-
-      <nav className="flex-1 space-y-2 overflow-y-auto custom-scrollbar">
-        <Link to="/dashboard" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/dashboard')}`}>
-          <LayoutDashboard size={20} /> Visão Geral
-        </Link>
-        <Link to="/incluir" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/incluir')}`}>
-          <PlusCircle size={20} /> Incluir Lançamento
-        </Link>
-        <Link to="/listagem" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/listagem')}`}>
-          <List size={20} /> Listagem
-        </Link>
-        <Link to="/despesas" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/despesas')}`}>
-          <Wallet size={20} /> Despesas
-        </Link>
-        <Link to="/relatorios" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/relatorios')}`}>
-          <FileText size={20} /> Relatórios
-        </Link>
-        <Link to="/etiquetas" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/etiquetas')}`}>
-          <Tag size={20} /> Etiquetas
-        </Link>
-        <Link to="/tarefas" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/tarefas')}`}>
-          <CheckSquare size={20} /> Tarefas
-        </Link>
-        <Link to="/calculadoras" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/calculadoras')}`}>
-          <Calculator size={20} /> Calculadoras
-        </Link>
-        <Link to="/grupos" className={`flex items-center gap-3 p-3 rounded transition-colors ${isActive('/grupos')}`}>
-          <Settings size={20} /> Cadastros Auxiliares
-        </Link>
-
-      </nav>
-
-      <button onClick={handleLogout} className="flex items-center gap-3 p-3 rounded hover:bg-red-600 transition-colors text-red-200 hover:text-white mt-4 border-t border-blue-800 pt-4">
-        <LogOut size={20} /> Sair
+    <aside 
+      className={`bg-[#003366] text-white min-h-screen p-4 flex flex-col justify-between transition-all duration-300 relative ${
+        collapsed ? 'w-20' : 'w-64'
+      }`}
+    >
+      {/* BOTÃO RETRÁTIL (TOGGLE) */}
+      <button 
+        onClick={() => setCollapsed(!collapsed)}
+        className="absolute -right-3 top-7 bg-white text-[#003366] p-1 rounded-full border border-gray-300 shadow-md hover:bg-gray-100 transition-colors z-50"
+        title={collapsed ? "Expandir menu" : "Encolher menu"}
+      >
+        {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
       </button>
-    </div>
+
+      <div>
+        {/* LOGO DA MARCA + COROA AMARELA */}
+        <div className="flex items-center gap-3 mb-8 px-2 overflow-hidden">
+          <img 
+            src="/rocket.svg" 
+            alt="Rocket Logo" 
+            className="w-8 h-8 shrink-0 object-contain" 
+          />
+          {!collapsed && (
+            <div className="flex items-center gap-1.5">
+              <span className="text-2xl font-bold tracking-wider whitespace-nowrap">
+                CP PRO
+              </span>
+              <Crown size={18} className="text-yellow-400 fill-yellow-400 shrink-0" />
+            </div>
+          )}
+        </div>
+
+        {/* MENU NAVEGAÇÃO */}
+        <nav className="space-y-1">
+          {menuItems.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.path);
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                title={collapsed ? item.label : ''}
+                className={`flex items-center gap-3 p-3 rounded-lg transition-colors font-semibold text-sm ${
+                  active 
+                    ? 'bg-blue-600 text-white shadow-sm' 
+                    : 'text-gray-300 hover:bg-[#00264d] hover:text-white'
+                } ${collapsed ? 'justify-center' : ''}`}
+              >
+                <Icon size={20} className="shrink-0" />
+                {!collapsed && <span className="truncate">{item.label}</span>}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
+
+      {/* RODAPÉ E BOTÃO DE SAÍDA */}
+      <div className="pt-4 border-t border-blue-900 space-y-2">
+        {!collapsed && (
+          <div className="bg-[#00264d] p-3 rounded-xl border border-blue-800 text-xs mb-3">
+            <div className="flex items-center justify-between font-bold text-yellow-400 mb-1">
+              <span>PERÍODO DE TESTE</span>
+              <Crown size={14} />
+            </div>
+            <p className="text-gray-300 mb-2">-81 dias restantes</p>
+            <Link 
+              to="/planos" 
+              className="block text-center w-full py-1.5 bg-white text-[#003366] font-bold rounded hover:bg-gray-100 transition-colors"
+            >
+              VER PLANOS
+            </Link>
+          </div>
+        )}
+
+        <button
+          onClick={handleLogout}
+          title={collapsed ? 'Sair' : ''}
+          className={`flex items-center gap-3 p-3 w-full rounded-lg text-red-300 hover:bg-red-500/10 hover:text-red-200 transition-colors font-semibold text-sm ${
+            collapsed ? 'justify-center' : ''
+          }`}
+        >
+          <LogOut size={20} className="shrink-0" />
+          {!collapsed && <span>Sair</span>}
+        </button>
+      </div>
+    </aside>
   );
 }
