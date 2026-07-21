@@ -99,23 +99,7 @@ export default function Sidebar() {
       </div>
 
       {/* RODAPÉ E BOTÃO DE SAÍDA */}
-      <div className="pt-4 border-t border-blue-900 space-y-2">
-        {!collapsed && (
-          <div className="bg-[#00264d] p-3 rounded-xl border border-blue-800 text-xs mb-3">
-            <div className="flex items-center justify-between font-bold text-yellow-400 mb-1">
-              <span>PERÍODO DE TESTE</span>
-              <Crown size={14} />
-            </div>
-            <p className="text-gray-300 mb-2">-81 dias restantes</p>
-            <Link 
-              to="/planos" 
-              className="block text-center w-full py-1.5 bg-white text-[#003366] font-bold rounded hover:bg-gray-100 transition-colors"
-            >
-              VER PLANOS
-            </Link>
-          </div>
-        )}
-
+      <div className="pt-4 border-t border-blue-900">
         <button
           onClick={handleLogout}
           title={collapsed ? 'Sair' : ''}
