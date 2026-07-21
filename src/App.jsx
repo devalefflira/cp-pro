@@ -15,6 +15,9 @@ import RelatorioPeriodoPrint from './pages/RelatorioPeriodoPrint';
 import RelatorioFornecedorPrint from './pages/RelatorioFornecedorPrint';
 import Planos from './pages/Planos'; // <--- IMPORTAÇÃO
 import Despesas from './pages/Despesas';
+import RelatorioDrePrint from './pages/RelatorioDrePrint';
+import RelatorioDespesasCentroCustoPrint from './pages/RelatorioDespesasCentroCustoPrint';
+import RelatorioDespesasFornecedorPrint from './pages/RelatorioDespesasFornecedorPrint';
 
 function App() {
   return (
@@ -27,6 +30,9 @@ function App() {
         <Route path="/print/diario" element={<RelatorioDiarioPrint />} /> 
         <Route path="/print/periodo" element={<RelatorioPeriodoPrint />} /> 
         <Route path="/print/fornecedor" element={<RelatorioFornecedorPrint />} />
+        <Route path="/print/dre" element={<RelatorioDrePrint />} />
+        <Route path="/print/despesas-cc" element={<RelatorioDespesasCentroCustoPrint />} />
+        <Route path="/print/despesas-fornecedor" element={<RelatorioDespesasFornecedorPrint />} />
 
         {/* ROTAS DO SISTEMA (COM SIDEBAR) */}
         <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />

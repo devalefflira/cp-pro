@@ -159,6 +159,7 @@ export default function LancarTab({ irParaListagem }) {
           <label className="block font-semibold text-gray-700 mb-1">Forma de Pagamento</label>
           <select className="w-full p-3 border rounded bg-gray-50 focus:ring-2 outline-none" value={form.forma_pagamento} onChange={(e) => setForm({ ...form, forma_pagamento: e.target.value })}>
             <option value="">Selecione...</option>
+            <option value="Boleto">Boleto</option>
             <option value="Cartão">Cartão</option>
             <option value="Cheque">Cheque</option>
             <option value="Dinheiro">Dinheiro</option>

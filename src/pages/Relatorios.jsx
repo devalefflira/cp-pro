@@ -7,7 +7,9 @@ import {
   Calendar, 
   BarChart2, 
   TrendingUp, 
-  TrendingDown 
+  TrendingDown, 
+  PieChart, 
+  Building 
 } from 'lucide-react';
 import { 
   subMonths, 
@@ -28,16 +30,26 @@ export default function Relatorios() {
   });
   const [listaFornecedores, setListaFornecedores] = useState([]);
 
-  // --- ESTADOS DO NOVO RELATÓRIO COMPARATIVO ---
+  // --- ESTADOS DO RELATÓRIO COMPARATIVO ---
   const [tipoComparacao, setTipoComparacao] = useState('mes_anterior');
   const [moduloComparacao, setModuloComparacao] = useState('lancamentos'); // 'lancamentos' ou 'despesas'
   const [loadingComparativo, setLoadingComparativo] = useState(false);
   const [dadosBaseComparativo, setDadosBaseComparativo] = useState([]);
 
+  // --- ESTADOS DOS NOVOS RELATÓRIOS DE DESPESAS ---
+  const [rangeDre, setRangeDre] = useState({ inicio: '', fim: '' });
+  const [rangeDespCC, setRangeDespCC] = useState({ inicio: '', fim: '', centro_custo_id: '' });
+  const [rangeDespForn, setRangeDespForn] = useState({ inicio: '', fim: '', fornecedor_id: '' });
+  const [listaCentrosCusto, setListaCentrosCusto] = useState([]);
+
   useEffect(() => {
     async function carregar() {
-      const { data } = await supabase.from('fornecedores').select('*').order('nome');
-      setListaFornecedores(data || []);
+      const [resF, resCC] = await Promise.all([
+        supabase.from('fornecedores').select('*').order('nome'),
+        supabase.from('centros_custo').select('*').order('codigo')
+      ]);
+      setListaFornecedores(resF.data || []);
+      setListaCentrosCusto(resCC.data || []);
     }
     carregar();
   }, []);
@@ -68,7 +80,7 @@ export default function Relatorios() {
     window.open(url, '_blank');
   };
 
-  // --- LÓGICA DO NOVO RELATÓRIO COMPARATIVO ---
+  // --- LÓGICA DO RELATÓRIO COMPARATIVO ---
   useEffect(() => {
     carregarDadosComparativos();
   }, [moduloComparacao]);
@@ -95,7 +107,6 @@ export default function Relatorios() {
 
     switch (tipoComparacao) {
       case 'mes_anterior': {
-        // Mês atual vs Mês anterior
         const p1Inicio = startOfMonth(hoje);
         const p1Fim = endOfMonth(hoje);
         const p2Inicio = startOfMonth(subMonths(hoje, 1));
@@ -107,7 +118,6 @@ export default function Relatorios() {
         };
       }
       case 'mes_ano_anterior': {
-        // Mês atual vs Mesmo Mês do Ano Anterior
         const p1Inicio = startOfMonth(hoje);
         const p1Fim = endOfMonth(hoje);
         const p2Inicio = startOfMonth(subYears(hoje, 1));
@@ -119,7 +129,6 @@ export default function Relatorios() {
         };
       }
       case 'tri_anterior': {
-        // Últimos 3 meses vs 3 meses Anteriores
         const p1Inicio = startOfMonth(subMonths(hoje, 2));
         const p1Fim = endOfMonth(hoje);
         const p2Inicio = startOfMonth(subMonths(hoje, 5));
@@ -131,7 +140,6 @@ export default function Relatorios() {
         };
       }
       case 'tri_ano_anterior': {
-        // Últimos 3 meses vs Mesmos 3 meses do Ano anterior
         const p1Inicio = startOfMonth(subMonths(hoje, 2));
         const p1Fim = endOfMonth(hoje);
         const p2Inicio = startOfMonth(subYears(subMonths(hoje, 2), 1));
@@ -143,7 +151,6 @@ export default function Relatorios() {
         };
       }
       case 'ano_vs_ano': {
-        // Ano vs Ano
         const p1Inicio = startOfYear(hoje);
         const p1Fim = endOfYear(hoje);
         const p2Inicio = startOfYear(subYears(hoje, 1));
@@ -191,6 +198,26 @@ export default function Relatorios() {
 
     return { totalP1, totalP2, qtdP1, qtdP2, diferenca, variacaoPerc };
   }, [dadosBaseComparativo, intervalos, moduloComparacao]);
+
+  // --- NOVAS AÇÕES PARA RELATÓRIOS DE DESPESAS ---
+  const handleVisualizarDre = () => {
+    if (!rangeDre.inicio || !rangeDre.fim) return alert('Selecione as datas inicial e final!');
+    window.open(`/print/dre?inicio=${rangeDre.inicio}&fim=${rangeDre.fim}`, '_blank');
+  };
+
+  const handleVisualizarDespCC = () => {
+    if (!rangeDespCC.inicio || !rangeDespCC.fim) return alert('Selecione as datas inicial e final!');
+    let url = `/print/despesas-cc?inicio=${rangeDespCC.inicio}&fim=${rangeDespCC.fim}`;
+    if (rangeDespCC.centro_custo_id) url += `&centro_custo_id=${rangeDespCC.centro_custo_id}`;
+    window.open(url, '_blank');
+  };
+
+  const handleVisualizarDespForn = () => {
+    if (!rangeDespForn.inicio || !rangeDespForn.fim) return alert('Selecione as datas inicial e final!');
+    let url = `/print/despesas-fornecedor?inicio=${rangeDespForn.inicio}&fim=${rangeDespForn.fim}`;
+    if (rangeDespForn.fornecedor_id) url += `&fornecedor_id=${rangeDespForn.fornecedor_id}`;
+    window.open(url, '_blank');
+  };
 
   const formatarMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
@@ -282,7 +309,7 @@ export default function Relatorios() {
         </div>
       </section>
 
-      {/* BLOCO 4: RELATÓRIO COMPARATIVO (NOVO) */}
+      {/* BLOCO 4: RELATÓRIO COMPARATIVO */}
       <section className="bg-white p-6 rounded-lg shadow border border-blue-100 space-y-6">
         <h3 className="text-xl font-bold text-gray-700 flex items-center gap-2">
           <BarChart2 className="text-secondary"/> Relatório Comparativo de Gastos
@@ -391,6 +418,80 @@ export default function Relatorios() {
 
           </div>
         )}
+      </section>
+
+      {/* BLOCO 5: RELATÓRIO DE DESPESAS - ESTILO DRE (NOVO) */}
+      <section className="bg-white p-6 rounded-lg shadow border border-indigo-100">
+        <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
+          <PieChart className="text-indigo-600"/> Relatório de Despesas - Estilo DRE
+        </h3>
+        <div className="flex flex-col md:flex-row items-end gap-4">
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Data Inicial</label>
+            <input type="date" className="p-2 border rounded w-full md:w-auto" value={rangeDre.inicio} onChange={e => setRangeDre({...rangeDre, inicio: e.target.value})} />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Data Final</label>
+            <input type="date" className="p-2 border rounded w-full md:w-auto" value={rangeDre.fim} onChange={e => setRangeDre({...rangeDre, fim: e.target.value})} />
+          </div>
+          <button onClick={handleVisualizarDre} className="bg-indigo-700 text-white px-6 py-2 rounded flex items-center gap-2 hover:bg-indigo-800 shadow-lg transition-transform hover:scale-105">
+            <ExternalLink size={18} /> Gerar DRE
+          </button>
+        </div>
+      </section>
+
+      {/* BLOCO 6: DESPESAS POR CENTRO DE CUSTO (NOVO) */}
+      <section className="bg-white p-6 rounded-lg shadow border border-indigo-100">
+        <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
+          <Building className="text-indigo-600"/> Despesas por Centro de Custo
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Data Inicial</label>
+            <input type="date" className="w-full p-2 border rounded" value={rangeDespCC.inicio} onChange={e => setRangeDespCC({...rangeDespCC, inicio: e.target.value})} />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Data Final</label>
+            <input type="date" className="w-full p-2 border rounded" value={rangeDespCC.fim} onChange={e => setRangeDespCC({...rangeDespCC, fim: e.target.value})} />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Centro de Custo</label>
+            <select className="w-full p-2 border rounded" value={rangeDespCC.centro_custo_id} onChange={e => setRangeDespCC({...rangeDespCC, centro_custo_id: e.target.value})}>
+              <option value="">Todos Centros de Custo</option>
+              {listaCentrosCusto.map(cc => <option key={cc.id} value={cc.id}>{cc.sigla} - {cc.descricao}</option>)}
+            </select>
+          </div>
+          <button onClick={handleVisualizarDespCC} className="bg-indigo-700 text-white px-4 py-2 rounded flex items-center justify-center gap-2 hover:bg-indigo-800 shadow-lg transition-transform hover:scale-105">
+            <ExternalLink size={18} /> Visualizar Relatório
+          </button>
+        </div>
+      </section>
+
+      {/* BLOCO 7: DESPESAS POR FORNECEDOR / PRESTADOR (NOVO) */}
+      <section className="bg-white p-6 rounded-lg shadow border border-indigo-100">
+        <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
+          <Users className="text-indigo-600"/> Despesas por Fornecedor / Prestador
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Data Inicial</label>
+            <input type="date" className="w-full p-2 border rounded" value={rangeDespForn.inicio} onChange={e => setRangeDespForn({...rangeDespForn, inicio: e.target.value})} />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Data Final</label>
+            <input type="date" className="w-full p-2 border rounded" value={rangeDespForn.fim} onChange={e => setRangeDespForn({...rangeDespForn, fim: e.target.value})} />
+          </div>
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Fornecedor</label>
+            <select className="w-full p-2 border rounded" value={rangeDespForn.fornecedor_id} onChange={e => setRangeDespForn({...rangeDespForn, fornecedor_id: e.target.value})}>
+              <option value="">Todos Fornecedores</option>
+              {listaFornecedores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+            </select>
+          </div>
+          <button onClick={handleVisualizarDespForn} className="bg-indigo-700 text-white px-4 py-2 rounded flex items-center justify-center gap-2 hover:bg-indigo-800 shadow-lg transition-transform hover:scale-105">
+            <ExternalLink size={18} /> Visualizar Relatório
+          </button>
+        </div>
       </section>
 
     </div>
