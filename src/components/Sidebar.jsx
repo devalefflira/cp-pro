@@ -57,37 +57,6 @@ export default function Sidebar() {
           <Settings size={20} /> Cadastros Auxiliares
         </Link>
 
-        {/* --- WIDGET DE TRIAL (FIXADO ABAIXO DE CADASTROS) --- */}
-        <div className="mt-6 mx-1 bg-gradient-to-b from-blue-900 to-indigo-900 rounded-xl p-4 border border-blue-700 shadow-xl relative overflow-hidden group">
-          {/* Efeito de brilho ao passar o mouse */}
-          <div className="absolute top-0 left-0 w-full h-full bg-white opacity-0 group-hover:opacity-5 transition-opacity"></div>
-
-          <div className="flex items-center justify-between mb-2 relative z-10">
-            <span className="text-[10px] font-bold text-blue-200 uppercase tracking-wider">Período de Teste</span>
-            <Crown size={14} className="text-yellow-400" />
-          </div>
-
-          <div className="flex items-baseline gap-1 mb-1 relative z-10">
-            <span className="text-2xl font-bold text-white">{diasRestantes}</span>
-            <span className="text-sm text-blue-200">dias restantes</span>
-          </div>
-
-          {/* Barra de Progresso */}
-          <div className="w-full bg-blue-950 h-1.5 rounded-full mb-4 overflow-hidden relative z-10">
-            <div
-              className={`h-full rounded-full transition-all duration-1000 ${diasRestantes < 10 ? 'bg-red-500' : 'bg-green-400'}`}
-              style={{ width: `${porcentagemRestante}%` }}
-            ></div>
-          </div>
-
-          <Link
-            to="/planos"
-            className="block w-full text-center bg-white hover:bg-gray-50 text-primary font-bold py-2 rounded-lg text-xs transition-all shadow-md transform hover:scale-105 active:scale-95 relative z-10"
-          >
-            VER PLANOS
-          </Link>
-        </div>
-
       </nav>
 
       <button onClick={handleLogout} className="flex items-center gap-3 p-3 rounded hover:bg-red-600 transition-colors text-red-200 hover:text-white mt-4 border-t border-blue-800 pt-4">
