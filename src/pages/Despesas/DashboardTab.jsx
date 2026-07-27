@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../services/supabase';
-import { ArrowDownCircle, CreditCard, Building, Users } from 'lucide-react';
+import { ArrowDownCircle, CreditCard, Building, Users, RefreshCw, ChevronRight } from 'lucide-react';
 import { 
   BarChart, 
   Bar, 
@@ -15,18 +15,23 @@ import {
   Cell 
 } from 'recharts';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#e57373', '#ba68c8'];
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#e57373', '#ba68c8', '#4db6ac'];
 
 export default function DashboardTab() {
   const [despesas, setDespesas] = useState([]);
   const [centrosCusto, setCentrosCusto] = useState([]);
   const [grupos, setGrupos] = useState([]);
+  const [contas, setContas] = useState([]);
 
   const anoAtual = new Date().getFullYear();
   const [filtroAno, setFiltroAno] = useState(anoAtual);
   const [filtroMes, setFiltroMes] = useState(new Date().getMonth());
   const [filtroCC, setFiltroCC] = useState('');
   const [filtroGrupo, setFiltroGrupo] = useState('');
+
+  // Estados para Navegação Drill-Down no Gráfico
+  const [ccSelecionadoDrill, setCcSelecionadoDrill] = useState(null); // Objeto do CC selecionado
+  const [grupoSelecionadoDrill, setGrupoSelecionadoDrill] = useState(null); // Objeto do Grupo selecionado
 
   const meses = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 
@@ -35,14 +40,16 @@ export default function DashboardTab() {
   }, []);
 
   const carregarDados = async () => {
-    const [resDesp, resCC, resGrupos] = await Promise.all([
-      supabase.from('despesas').select('*, centros_custo(sigla), grupos_despesa(descricao), contas_despesa(descricao), fornecedores(nome)'),
+    const [resDesp, resCC, resGrupos, resContas] = await Promise.all([
+      supabase.from('despesas').select('*, centros_custo(id, sigla, descricao), grupos_despesa(id, codigo, descricao), contas_despesa(id, codigo, descricao), fornecedores(nome)'),
       supabase.from('centros_custo').select('*'),
-      supabase.from('grupos_despesa').select('*')
+      supabase.from('grupos_despesa').select('*'),
+      supabase.from('contas_despesa').select('*')
     ]);
     setDespesas(resDesp.data || []);
     setCentrosCusto(resCC.data || []);
     setGrupos(resGrupos.data || []);
+    setContas(resContas.data || []);
   };
 
   const despesasFiltradas = useMemo(() => {
@@ -59,7 +66,71 @@ export default function DashboardTab() {
 
   const totalDespesas = despesasFiltradas.reduce((acc, curr) => acc + Number(curr.valor), 0);
 
-  // --- DADOS DOS GRÁFICOS ---
+  // --- GRÁFICO 1: POR CENTRO DE CUSTO ---
+  const dadosCentroCusto = useMemo(() => {
+    const agrupado = {};
+    despesasFiltradas.forEach(d => {
+      const cc = d.centros_custo;
+      const key = cc ? `${cc.sigla}` : 'Sem CC';
+      if (!agrupado[key]) {
+        agrupado[key] = {
+          name: key,
+          fullName: cc ? `${cc.sigla} - ${cc.descricao}` : 'Sem CC',
+          value: 0,
+          rawObj: cc
+        };
+      }
+      agrupado[key].value += Number(d.valor);
+    });
+    return Object.values(agrupado);
+  }, [despesasFiltradas]);
+
+  // --- GRÁFICO DRILL-DOWN NÍVEL 2: POR GRUPO (DO CC SELECIONADO) ---
+  const dadosGruposDrill = useMemo(() => {
+    if (!ccSelecionadoDrill) return [];
+    const despDoCC = despesasFiltradas.filter(d => d.centro_custo_id === ccSelecionadoDrill.id);
+    const agrupado = {};
+    despDoCC.forEach(d => {
+      const g = d.grupos_despesa;
+      const key = g ? g.descricao : 'Outros';
+      if (!agrupado[key]) {
+        agrupado[key] = {
+          name: key,
+          fullName: g ? `${g.codigo} - ${g.descricao}` : key,
+          value: 0,
+          rawObj: g
+        };
+      }
+      agrupado[key].value += Number(d.valor);
+    });
+    return Object.values(agrupado);
+  }, [despesasFiltradas, ccSelecionadoDrill]);
+
+  const totalGruposDrill = useMemo(() => dadosGruposDrill.reduce((a, b) => a + b.value, 0), [dadosGruposDrill]);
+
+  // --- GRÁFICO DRILL-DOWN NÍVEL 3: POR CONTA (DO GRUPO SELECIONADO) ---
+  const dadosContasDrill = useMemo(() => {
+    if (!grupoSelecionadoDrill) return [];
+    const despDoGrupo = despesasFiltradas.filter(d => d.grupo_id === grupoSelecionadoDrill.id);
+    const agrupado = {};
+    despDoGrupo.forEach(d => {
+      const c = d.contas_despesa;
+      const key = c ? c.descricao : 'Outros';
+      if (!agrupado[key]) {
+        agrupado[key] = {
+          name: key,
+          fullName: c ? `${c.codigo} - ${c.descricao}` : key,
+          value: 0
+        };
+      }
+      agrupado[key].value += Number(d.valor);
+    });
+    return Object.values(agrupado);
+  }, [despesasFiltradas, grupoSelecionadoDrill]);
+
+  const totalContasDrill = useMemo(() => dadosContasDrill.reduce((a, b) => a + b.value, 0), [dadosContasDrill]);
+
+  // Outros Agrupamentos
   const dadosEvolucao = useMemo(() => {
     const despAno = despesas.filter(d => d.data_pagamento && new Date(d.data_pagamento + 'T12:00:00').getFullYear() === filtroAno);
     const agrupado = {};
@@ -74,41 +145,49 @@ export default function DashboardTab() {
   const agruparPor = (chave, nomeFallback) => {
     const agrupado = {};
     despesasFiltradas.forEach(d => {
-      let nome = nomeFallback;
-      if (typeof chave === 'string') {
-        nome = d[chave] || nomeFallback;
-      } else if (typeof chave === 'function') {
-        nome = chave(d) || nomeFallback;
-      }
+      const nome = (typeof chave === 'function' ? chave(d) : d[chave]) || nomeFallback;
       agrupado[nome] = (agrupado[nome] || 0) + Number(d.valor);
     });
     return Object.keys(agrupado).map(k => ({ name: k, value: agrupado[k] }));
   };
 
-  // 1. Saídas por Forma de Pagamento
-  const dadosFormaPagamento = useMemo(() => {
-    return agruparPor('forma_pagamento', 'Não Informado');
-  }, [despesasFiltradas]);
-
-  // 2. Saídas por Origem
-  const dadosOrigem = useMemo(() => {
-    return agruparPor('origem', 'Não Informado');
-  }, [despesasFiltradas]);
-
-  // 3. Top 5 Fornecedores / Prestadores
+  const dadosFormaPagamento = useMemo(() => agruparPor('forma_pagamento', 'Não Informado'), [despesasFiltradas]);
+  const dadosOrigem = useMemo(() => agruparPor('origem', 'Não Informado'), [despesasFiltradas]);
+  
   const rankingFornecedores = useMemo(() => {
-    const agrupado = agruparPor(d => d.fornecedores?.nome, 'Outros');
-    return agrupado
+    return agruparPor(d => d.fornecedores?.nome, 'Outros')
       .sort((a, b) => b.value - a.value)
-      .slice(0, 5); // Pega apenas os 5 maiores
+      .slice(0, 5);
   }, [despesasFiltradas]);
 
   const formatarMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
+  // Renderizador da legenda com Tooltip nativo (Exibe nome completo no hover)
+  const renderCustomLegend = (props) => {
+    const { payload } = props;
+    return (
+      <ul className="flex flex-wrap justify-center gap-2 text-xs mt-2">
+        {payload.map((entry, index) => {
+          const item = dadosCentroCusto[index] || {};
+          return (
+            <li 
+              key={`item-${index}`} 
+              className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+              title={item.fullName || entry.value}
+            >
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: entry.color }}></span>
+              <span className="font-semibold text-gray-700">{entry.value}</span>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  };
+
   return (
     <div className="space-y-6">
       
-      {/* FILTROS */}
+      {/* FILTROS DE PERÍODO E CATEGORIA */}
       <div className="space-y-4">
         <div className="bg-gray-50 p-2 rounded-xl border flex flex-col xl:flex-row justify-between gap-4">
           <div className="flex bg-gray-200 rounded-full p-1">
@@ -121,6 +200,7 @@ export default function DashboardTab() {
             ))}
           </div>
         </div>
+
         <div className="bg-white p-4 rounded-xl border flex gap-4">
           <select className="flex-1 p-2 border rounded text-sm" value={filtroCC} onChange={e => {setFiltroCC(e.target.value); setFiltroGrupo('');}}>
             <option value="">Todos Centros de Custo</option>
@@ -142,7 +222,7 @@ export default function DashboardTab() {
 
       {/* GRÁFICOS LINHA 1 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl border h-80">
+        <div className="bg-white p-6 rounded-xl border h-96">
           <h3 className="font-bold text-gray-700 mb-4">Evolução Mensal ({filtroAno})</h3>
           <ResponsiveContainer width="100%" height="90%">
             <BarChart data={dadosEvolucao}>
@@ -155,23 +235,150 @@ export default function DashboardTab() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-white p-6 rounded-xl border h-80">
-          <h3 className="font-bold text-gray-700 mb-4">Por Centro de Custo</h3>
-          <ResponsiveContainer width="100%" height="90%">
+        {/* GRÁFICO DE CENTROS DE CUSTO COM TOOLTIP PERCENTUAL E HOVER LEGENDA */}
+        <div className="bg-white p-6 rounded-xl border h-96 flex flex-col">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="font-bold text-gray-700">Por Centro de Custo</h3>
+            <span className="text-[11px] text-blue-600 font-semibold bg-blue-50 px-2 py-0.5 rounded">Clique na fatia para detalhar</span>
+          </div>
+
+          <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={agruparPor(d => d.centros_custo?.sigla, 'Sem CC')} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                {agruparPor(d => d.centros_custo?.sigla, '').map((e, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+              <Pie 
+                data={dadosCentroCusto} 
+                cx="50%" 
+                cy="45%" 
+                innerRadius={55} 
+                outerRadius={75} 
+                paddingAngle={4} 
+                dataKey="value"
+                onClick={(entry) => {
+                  if (entry && entry.rawObj) {
+                    setCcSelecionadoDrill(entry.rawObj);
+                    setGrupoSelecionadoDrill(null); // reseta o 3º nível
+                  }
+                }}
+                className="cursor-pointer"
+              >
+                {dadosCentroCusto.map((e, i) => (
+                  <Cell 
+                    key={i} 
+                    fill={COLORS[i % COLORS.length]} 
+                    stroke={ccSelecionadoDrill?.id === e.rawObj?.id ? '#000' : 'none'}
+                    strokeWidth={2}
+                  />
+                ))}
               </Pie>
-              <Tooltip formatter={(v)=>formatarMoeda(v)}/>
-              <Legend verticalAlign="bottom"/>
+              <Tooltip 
+                formatter={(value) => {
+                  const perc = totalDespesas > 0 ? ((value / totalDespesas) * 100).toFixed(1) : 0;
+                  return [`${formatarMoeda(value)} (${perc}%)`, 'Valor'];
+                }}
+                labelFormatter={(label) => {
+                  const found = dadosCentroCusto.find(d => d.name === label);
+                  return found ? found.fullName : label;
+                }}
+              />
+              <Legend content={renderCustomLegend} verticalAlign="bottom"/>
             </PieChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* GRÁFICOS LINHA 2 (NOVOS: FORMA DE PAGAMENTO E ORIGEM) */}
+      {/* --- SEÇÃO DRILL-DOWN INTERATIVA (EXIBIDA AO CLICAR NO GRÁFICO PAI) --- */}
+      {ccSelecionadoDrill && (
+        <div className="bg-blue-50/40 p-6 rounded-2xl border-2 border-blue-200 space-y-6">
+          <div className="flex justify-between items-center border-b border-blue-200 pb-3">
+            <div className="flex items-center gap-2 text-sm font-bold text-blue-900">
+              <span className="bg-blue-600 text-white px-2 py-0.5 rounded">{ccSelecionadoDrill.sigla}</span>
+              <span>{ccSelecionadoDrill.descricao}</span>
+              {grupoSelecionadoDrill && (
+                <>
+                  <ChevronRight size={16} className="text-gray-400"/>
+                  <span className="bg-indigo-600 text-white px-2 py-0.5 rounded">{grupoSelecionadoDrill.descricao}</span>
+                </>
+              )}
+            </div>
+            <button 
+              onClick={() => { setCcSelecionadoDrill(null); setGrupoSelecionadoDrill(null); }}
+              className="text-xs bg-white text-gray-600 hover:text-red-600 px-3 py-1 rounded border font-semibold shadow-sm transition-colors"
+            >
+              Fechar Detalhamento
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            {/* GRÁFICO FILHO 1: GRUPOS DO CENTRO DE CUSTO SELECIONADO */}
+            <div className="bg-white p-5 rounded-xl border h-80">
+              <h4 className="font-bold text-gray-700 text-sm mb-3">
+                Grupos em {ccSelecionadoDrill.sigla}
+              </h4>
+              <ResponsiveContainer width="100%" height="85%">
+                <PieChart>
+                  <Pie 
+                    data={dadosGruposDrill} 
+                    cx="50%" 
+                    cy="50%" 
+                    innerRadius={45} 
+                    outerRadius={65} 
+                    paddingAngle={3} 
+                    dataKey="value"
+                    onClick={(entry) => {
+                      if (entry && entry.rawObj) setGrupoSelecionadoDrill(entry.rawObj);
+                    }}
+                    className="cursor-pointer"
+                  >
+                    {dadosGruposDrill.map((e, i) => (
+                      <Cell key={i} fill={COLORS[(i + 2) % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(val) => {
+                      const perc = totalGruposDrill > 0 ? ((val / totalGruposDrill) * 100).toFixed(1) : 0;
+                      return [`${formatarMoeda(val)} (${perc}%)`, 'Valor'];
+                    }}
+                  />
+                  <Legend verticalAlign="bottom"/>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* GRÁFICO FILHO 2: CONTAS DO GRUPO SELECIONADO (NÍVEL 3) */}
+            <div className="bg-white p-5 rounded-xl border h-80">
+              <h4 className="font-bold text-gray-700 text-sm mb-3">
+                {grupoSelecionadoDrill ? `Contas do Grupo: ${grupoSelecionadoDrill.descricao}` : 'Selecione um Grupo ao lado para ver as Contas'}
+              </h4>
+              {grupoSelecionadoDrill ? (
+                <ResponsiveContainer width="100%" height="85%">
+                  <PieChart>
+                    <Pie data={dadosContasDrill} cx="50%" cy="50%" innerRadius={45} outerRadius={65} paddingAngle={3} dataKey="value">
+                      {dadosContasDrill.map((e, i) => (
+                        <Cell key={i} fill={COLORS[(i + 4) % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      formatter={(val) => {
+                        const perc = totalContasDrill > 0 ? ((val / totalContasDrill) * 100).toFixed(1) : 0;
+                        return [`${formatarMoeda(val)} (${perc}%)`, 'Valor'];
+                      }}
+                    />
+                    <Legend verticalAlign="bottom"/>
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-gray-400 italic">
+                  Clique em um Grupo no gráfico ao lado para visualizar a distribuição por Contas.
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* GRÁFICOS LINHA 2: FORMA DE PAGAMENTO E ORIGEM */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Forma de Pagamento */}
         <div className="bg-white p-6 rounded-xl border h-80">
           <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
             <CreditCard size={18} className="text-indigo-600" />
@@ -188,7 +395,6 @@ export default function DashboardTab() {
           </ResponsiveContainer>
         </div>
 
-        {/* Origem */}
         <div className="bg-white p-6 rounded-xl border h-80">
           <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
             <Building size={18} className="text-emerald-600" />
@@ -206,7 +412,7 @@ export default function DashboardTab() {
         </div>
       </div>
 
-      {/* GRÁFICOS LINHA 3 (RANKING DE FORNECEDORES) */}
+      {/* RANKING DE FORNECEDORES */}
       <div className="bg-white p-6 rounded-xl border">
         <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
           <Users size={18} className="text-blue-600" />
