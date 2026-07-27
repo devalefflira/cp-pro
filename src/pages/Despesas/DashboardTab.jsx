@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../services/supabase';
-import { ArrowDownCircle, CreditCard, Building, Users, RefreshCw, ChevronRight } from 'lucide-react';
+import { ArrowDownCircle, CreditCard, Building, Users, ChevronRight } from 'lucide-react';
 import { 
   BarChart, 
   Bar, 
@@ -30,8 +30,8 @@ export default function DashboardTab() {
   const [filtroGrupo, setFiltroGrupo] = useState('');
 
   // Estados para Navegação Drill-Down no Gráfico
-  const [ccSelecionadoDrill, setCcSelecionadoDrill] = useState(null); // Objeto do CC selecionado
-  const [grupoSelecionadoDrill, setGrupoSelecionadoDrill] = useState(null); // Objeto do Grupo selecionado
+  const [ccSelecionadoDrill, setCcSelecionadoDrill] = useState(null);
+  const [grupoSelecionadoDrill, setGrupoSelecionadoDrill] = useState(null);
 
   const meses = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
 
@@ -85,7 +85,7 @@ export default function DashboardTab() {
     return Object.values(agrupado);
   }, [despesasFiltradas]);
 
-  // --- GRÁFICO DRILL-DOWN NÍVEL 2: POR GRUPO (DO CC SELECIONADO) ---
+  // --- GRÁFICO DRILL-DOWN NÍVEL 2: POR GRUPO ---
   const dadosGruposDrill = useMemo(() => {
     if (!ccSelecionadoDrill) return [];
     const despDoCC = despesasFiltradas.filter(d => d.centro_custo_id === ccSelecionadoDrill.id);
@@ -108,7 +108,7 @@ export default function DashboardTab() {
 
   const totalGruposDrill = useMemo(() => dadosGruposDrill.reduce((a, b) => a + b.value, 0), [dadosGruposDrill]);
 
-  // --- GRÁFICO DRILL-DOWN NÍVEL 3: POR CONTA (DO GRUPO SELECIONADO) ---
+  // --- GRÁFICO DRILL-DOWN NÍVEL 3: POR CONTA ---
   const dadosContasDrill = useMemo(() => {
     if (!grupoSelecionadoDrill) return [];
     const despDoGrupo = despesasFiltradas.filter(d => d.grupo_id === grupoSelecionadoDrill.id);
@@ -162,24 +162,21 @@ export default function DashboardTab() {
 
   const formatarMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-  // Renderizador da legenda com Tooltip nativo (Exibe nome completo no hover)
+  // Custom Legend: pega a descrição completa diretamente do payload do item
   const renderCustomLegend = (props) => {
     const { payload } = props;
     return (
       <ul className="flex flex-wrap justify-center gap-2 text-xs mt-2">
-        {payload.map((entry, index) => {
-          const item = dadosCentroCusto[index] || {};
-          return (
-            <li 
-              key={`item-${index}`} 
-              className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
-              title={item.fullName || entry.value}
-            >
-              <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: entry.color }}></span>
-              <span className="font-semibold text-gray-700">{entry.value}</span>
-            </li>
-          );
-        })}
+        {payload.map((entry, index) => (
+          <li 
+            key={`item-${index}`} 
+            className="flex items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
+            title={entry.payload?.fullName || entry.value}
+          >
+            <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: entry.color }}></span>
+            <span className="font-semibold text-gray-700">{entry.value}</span>
+          </li>
+        ))}
       </ul>
     );
   };
@@ -235,7 +232,7 @@ export default function DashboardTab() {
           </ResponsiveContainer>
         </div>
 
-        {/* GRÁFICO DE CENTROS DE CUSTO COM TOOLTIP PERCENTUAL E HOVER LEGENDA */}
+        {/* GRÁFICO DE CENTROS DE CUSTO */}
         <div className="bg-white p-6 rounded-xl border h-96 flex flex-col">
           <div className="flex justify-between items-center mb-2">
             <h3 className="font-bold text-gray-700">Por Centro de Custo</h3>
@@ -253,9 +250,10 @@ export default function DashboardTab() {
                 paddingAngle={4} 
                 dataKey="value"
                 onClick={(entry) => {
-                  if (entry && entry.rawObj) {
-                    setCcSelecionadoDrill(entry.rawObj);
-                    setGrupoSelecionadoDrill(null); // reseta o 3º nível
+                  const item = entry?.payload || entry;
+                  if (item && item.rawObj) {
+                    setCcSelecionadoDrill(item.rawObj);
+                    setGrupoSelecionadoDrill(null);
                   }
                 }}
                 className="cursor-pointer"
@@ -270,13 +268,10 @@ export default function DashboardTab() {
                 ))}
               </Pie>
               <Tooltip 
-                formatter={(value) => {
+                formatter={(value, name, item) => {
                   const perc = totalDespesas > 0 ? ((value / totalDespesas) * 100).toFixed(1) : 0;
-                  return [`${formatarMoeda(value)} (${perc}%)`, 'Valor'];
-                }}
-                labelFormatter={(label) => {
-                  const found = dadosCentroCusto.find(d => d.name === label);
-                  return found ? found.fullName : label;
+                  const label = item?.payload?.fullName || name;
+                  return [`${formatarMoeda(value)} (${perc}%)`, label];
                 }}
               />
               <Legend content={renderCustomLegend} verticalAlign="bottom"/>
@@ -285,7 +280,7 @@ export default function DashboardTab() {
         </div>
       </div>
 
-      {/* --- SEÇÃO DRILL-DOWN INTERATIVA (EXIBIDA AO CLICAR NO GRÁFICO PAI) --- */}
+      {/* --- SEÇÃO DRILL-DOWN INTERATIVA --- */}
       {ccSelecionadoDrill && (
         <div className="bg-blue-50/40 p-6 rounded-2xl border-2 border-blue-200 space-y-6">
           <div className="flex justify-between items-center border-b border-blue-200 pb-3">
@@ -325,7 +320,8 @@ export default function DashboardTab() {
                     paddingAngle={3} 
                     dataKey="value"
                     onClick={(entry) => {
-                      if (entry && entry.rawObj) setGrupoSelecionadoDrill(entry.rawObj);
+                      const item = entry?.payload || entry;
+                      if (item && item.rawObj) setGrupoSelecionadoDrill(item.rawObj);
                     }}
                     className="cursor-pointer"
                   >
@@ -334,9 +330,10 @@ export default function DashboardTab() {
                     ))}
                   </Pie>
                   <Tooltip 
-                    formatter={(val) => {
+                    formatter={(val, name, item) => {
                       const perc = totalGruposDrill > 0 ? ((val / totalGruposDrill) * 100).toFixed(1) : 0;
-                      return [`${formatarMoeda(val)} (${perc}%)`, 'Valor'];
+                      const label = item?.payload?.fullName || name;
+                      return [`${formatarMoeda(val)} (${perc}%)`, label];
                     }}
                   />
                   <Legend verticalAlign="bottom"/>
@@ -344,7 +341,7 @@ export default function DashboardTab() {
               </ResponsiveContainer>
             </div>
 
-            {/* GRÁFICO FILHO 2: CONTAS DO GRUPO SELECIONADO (NÍVEL 3) */}
+            {/* GRÁFICO FILHO 2: CONTAS DO GRUPO SELECIONADO */}
             <div className="bg-white p-5 rounded-xl border h-80">
               <h4 className="font-bold text-gray-700 text-sm mb-3">
                 {grupoSelecionadoDrill ? `Contas do Grupo: ${grupoSelecionadoDrill.descricao}` : 'Selecione um Grupo ao lado para ver as Contas'}
@@ -358,9 +355,10 @@ export default function DashboardTab() {
                       ))}
                     </Pie>
                     <Tooltip 
-                      formatter={(val) => {
+                      formatter={(val, name, item) => {
                         const perc = totalContasDrill > 0 ? ((val / totalContasDrill) * 100).toFixed(1) : 0;
-                        return [`${formatarMoeda(val)} (${perc}%)`, 'Valor'];
+                        const label = item?.payload?.fullName || name;
+                        return [`${formatarMoeda(val)} (${perc}%)`, label];
                       }}
                     />
                     <Legend verticalAlign="bottom"/>
@@ -379,7 +377,7 @@ export default function DashboardTab() {
 
       {/* GRÁFICOS LINHA 2: FORMA DE PAGAMENTO E ORIGEM */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white p-6 rounded-xl border h-80">
+        <div className="bg-[#ffffff] p-6 rounded-xl border h-80">
           <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
             <CreditCard size={18} className="text-indigo-600" />
             Saídas por Forma de Pagamento
