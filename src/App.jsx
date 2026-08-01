@@ -18,6 +18,7 @@ import Despesas from './pages/Despesas';
 import RelatorioDrePrint from './pages/RelatorioDrePrint';
 import RelatorioDespesasCentroCustoPrint from './pages/RelatorioDespesasCentroCustoPrint';
 import RelatorioDespesasFornecedorPrint from './pages/RelatorioDespesasFornecedorPrint';
+import RelatorioEvolucaoContaPrint from './pages/RelatorioEvolucaoContaPrint';
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
         <Route path="/print/dre" element={<RelatorioDrePrint />} />
         <Route path="/print/despesas-cc" element={<RelatorioDespesasCentroCustoPrint />} />
         <Route path="/print/despesas-fornecedor" element={<RelatorioDespesasFornecedorPrint />} />
+        <Route path="/print/evolucao-conta" element={<RelatorioEvolucaoContaPrint />} />
 
         {/* ROTAS DO SISTEMA (COM SIDEBAR) */}
         <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />

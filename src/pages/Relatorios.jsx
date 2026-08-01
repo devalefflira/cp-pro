@@ -7,9 +7,7 @@ import {
   Calendar, 
   BarChart2, 
   TrendingUp, 
-  TrendingDown, 
-  PieChart, 
-  Building 
+  TrendingDown 
 } from 'lucide-react';
 import { 
   subMonths, 
@@ -22,7 +20,6 @@ import {
 } from 'date-fns';
 
 export default function Relatorios() {
-  // --- ESTADOS EXISTENTES ---
   const [range, setRange] = useState({ inicio: '', fim: '' });
   const [dia, setDia] = useState('');
   const [filtrosFornecedor, setFiltrosFornecedor] = useState({
@@ -30,45 +27,29 @@ export default function Relatorios() {
   });
   const [listaFornecedores, setListaFornecedores] = useState([]);
 
-  // --- ESTADOS DO RELATÓRIO COMPARATIVO ---
   const [tipoComparacao, setTipoComparacao] = useState('mes_anterior');
-  const [moduloComparacao, setModuloComparacao] = useState('lancamentos'); // 'lancamentos' ou 'despesas'
+  const [moduloComparacao, setModuloComparacao] = useState('lancamentos');
   const [loadingComparativo, setLoadingComparativo] = useState(false);
   const [dadosBaseComparativo, setDadosBaseComparativo] = useState([]);
 
-  // --- ESTADOS DOS NOVOS RELATÓRIOS DE DESPESAS ---
-  const [rangeDre, setRangeDre] = useState({ inicio: '', fim: '' });
-  const [rangeDespCC, setRangeDespCC] = useState({ inicio: '', fim: '', centro_custo_id: '' });
-  const [rangeDespForn, setRangeDespForn] = useState({ inicio: '', fim: '', fornecedor_id: '' });
-  const [listaCentrosCusto, setListaCentrosCusto] = useState([]);
-
   useEffect(() => {
     async function carregar() {
-      const [resF, resCC] = await Promise.all([
-        supabase.from('fornecedores').select('*').order('nome'),
-        supabase.from('centros_custo').select('*').order('codigo')
-      ]);
-      setListaFornecedores(resF.data || []);
-      setListaCentrosCusto(resCC.data || []);
+      const { data } = await supabase.from('fornecedores').select('*').order('nome');
+      setListaFornecedores(data || []);
     }
     carregar();
   }, []);
 
-  // --- AÇÕES EXISTENTES ---
-  
-  // 1. Ação Período
   const handleVisualizarPeriodo = () => {
     if (!range.inicio || !range.fim) return alert('Selecione as datas inicial e final!');
     window.open(`/print/periodo?inicio=${range.inicio}&fim=${range.fim}`, '_blank');
   };
 
-  // 2. Ação Diário
   const handleAbrirPreviewDiario = () => {
     if (!dia) return alert("Selecione um dia!");
     window.open(`/print/diario?data=${dia}`, '_blank');
   };
 
-  // 3. Ação Fornecedor
   const handleVisualizarFornecedor = () => {
     if (!filtrosFornecedor.inicio || !filtrosFornecedor.fim) {
       return alert("Selecione o período (Início e Fim)!");
@@ -80,7 +61,6 @@ export default function Relatorios() {
     window.open(url, '_blank');
   };
 
-  // --- LÓGICA DO RELATÓRIO COMPARATIVO ---
   useEffect(() => {
     carregarDadosComparativos();
   }, [moduloComparacao]);
@@ -88,136 +68,71 @@ export default function Relatorios() {
   const carregarDadosComparativos = async () => {
     setLoadingComparativo(true);
     const tabela = moduloComparacao === 'lancamentos' ? 'lancamentos' : 'despesas';
-    
-    const { data, error } = await supabase
-      .from(tabela)
-      .select('*');
-
-    if (error) {
-      console.error('Erro ao carregar dados comparativos:', error);
-    } else {
-      setDadosBaseComparativo(data || []);
-    }
+    const { data } = await supabase.from(tabela).select('*');
+    setDadosBaseComparativo(data || []);
     setLoadingComparativo(false);
   };
 
-  // Cálculo das janelas temporais de comparação
   const intervalos = useMemo(() => {
     const hoje = new Date();
-
     switch (tipoComparacao) {
       case 'mes_anterior': {
         const p1Inicio = startOfMonth(hoje);
         const p1Fim = endOfMonth(hoje);
         const p2Inicio = startOfMonth(subMonths(hoje, 1));
         const p2Fim = endOfMonth(subMonths(hoje, 1));
-        return {
-          labelP1: format(p1Inicio, 'MMM/yyyy'),
-          labelP2: format(p2Inicio, 'MMM/yyyy'),
-          p1Inicio, p1Fim, p2Inicio, p2Fim
-        };
+        return { labelP1: format(p1Inicio, 'MMM/yyyy'), labelP2: format(p2Inicio, 'MMM/yyyy'), p1Inicio, p1Fim, p2Inicio, p2Fim };
       }
       case 'mes_ano_anterior': {
         const p1Inicio = startOfMonth(hoje);
         const p1Fim = endOfMonth(hoje);
         const p2Inicio = startOfMonth(subYears(hoje, 1));
         const p2Fim = endOfMonth(subYears(hoje, 1));
-        return {
-          labelP1: format(p1Inicio, 'MMM/yyyy'),
-          labelP2: format(p2Inicio, 'MMM/yyyy'),
-          p1Inicio, p1Fim, p2Inicio, p2Fim
-        };
+        return { labelP1: format(p1Inicio, 'MMM/yyyy'), labelP2: format(p2Inicio, 'MMM/yyyy'), p1Inicio, p1Fim, p2Inicio, p2Fim };
       }
       case 'tri_anterior': {
         const p1Inicio = startOfMonth(subMonths(hoje, 2));
         const p1Fim = endOfMonth(hoje);
         const p2Inicio = startOfMonth(subMonths(hoje, 5));
         const p2Fim = endOfMonth(subMonths(hoje, 3));
-        return {
-          labelP1: `${format(p1Inicio, 'MMM')} - ${format(p1Fim, 'MMM/yy')}`,
-          labelP2: `${format(p2Inicio, 'MMM')} - ${format(p2Fim, 'MMM/yy')}`,
-          p1Inicio, p1Fim, p2Inicio, p2Fim
-        };
+        return { labelP1: `${format(p1Inicio, 'MMM')} - ${format(p1Fim, 'MMM/yy')}`, labelP2: `${format(p2Inicio, 'MMM')} - ${format(p2Fim, 'MMM/yy')}`, p1Inicio, p1Fim, p2Inicio, p2Fim };
       }
       case 'tri_ano_anterior': {
         const p1Inicio = startOfMonth(subMonths(hoje, 2));
         const p1Fim = endOfMonth(hoje);
         const p2Inicio = startOfMonth(subYears(subMonths(hoje, 2), 1));
         const p2Fim = endOfMonth(subYears(hoje, 1));
-        return {
-          labelP1: `${format(p1Inicio, 'MMM')} - ${format(p1Fim, 'MMM/yy')}`,
-          labelP2: `${format(p2Inicio, 'MMM')} - ${format(p2Fim, 'MMM/yy')}`,
-          p1Inicio, p1Fim, p2Inicio, p2Fim
-        };
+        return { labelP1: `${format(p1Inicio, 'MMM')} - ${format(p1Fim, 'MMM/yy')}`, labelP2: `${format(p2Inicio, 'MMM')} - ${format(p2Fim, 'MMM/yy')}`, p1Inicio, p1Fim, p2Inicio, p2Fim };
       }
       case 'ano_vs_ano': {
         const p1Inicio = startOfYear(hoje);
         const p1Fim = endOfYear(hoje);
         const p2Inicio = startOfYear(subYears(hoje, 1));
         const p2Fim = endOfYear(subYears(hoje, 1));
-        return {
-          labelP1: format(p1Inicio, 'yyyy'),
-          labelP2: format(p2Inicio, 'yyyy'),
-          p1Inicio, p1Fim, p2Inicio, p2Fim
-        };
+        return { labelP1: format(p1Inicio, 'yyyy'), labelP2: format(p2Inicio, 'yyyy'), p1Inicio, p1Fim, p2Inicio, p2Fim };
       }
-      default:
-        return null;
+      default: return null;
     }
   }, [tipoComparacao]);
 
-  // Totais do comparativo
   const resultadoComparativo = useMemo(() => {
-    if (!intervalos || dadosBaseComparativo.length === 0) {
-      return { totalP1: 0, totalP2: 0, qtdP1: 0, qtdP2: 0, diferenca: 0, variacaoPerc: 0 };
-    }
-
+    if (!intervalos || dadosBaseComparativo.length === 0) return { totalP1: 0, totalP2: 0, qtdP1: 0, qtdP2: 0, diferenca: 0, variacaoPerc: 0 };
     const campoData = moduloComparacao === 'lancamentos' ? 'data_vencimento' : 'data_pagamento';
-
-    let totalP1 = 0, qtdP1 = 0;
-    let totalP2 = 0, qtdP2 = 0;
+    let totalP1 = 0, qtdP1 = 0, totalP2 = 0, qtdP2 = 0;
 
     dadosBaseComparativo.forEach(item => {
       const dStr = item[campoData];
       if (!dStr) return;
-
       const dataItem = new Date(dStr + 'T12:00:00');
       const val = Number(item.valor) || 0;
-
-      if (dataItem >= intervalos.p1Inicio && dataItem <= intervalos.p1Fim) {
-        totalP1 += val;
-        qtdP1++;
-      } else if (dataItem >= intervalos.p2Inicio && dataItem <= intervalos.p2Fim) {
-        totalP2 += val;
-        qtdP2++;
-      }
+      if (dataItem >= intervalos.p1Inicio && dataItem <= intervalos.p1Fim) { totalP1 += val; qtdP1++; }
+      else if (dataItem >= intervalos.p2Inicio && dataItem <= intervalos.p2Fim) { totalP2 += val; qtdP2++; }
     });
 
     const diferenca = totalP1 - totalP2;
     const variacaoPerc = totalP2 > 0 ? ((totalP1 - totalP2) / totalP2) * 100 : 0;
-
     return { totalP1, totalP2, qtdP1, qtdP2, diferenca, variacaoPerc };
   }, [dadosBaseComparativo, intervalos, moduloComparacao]);
-
-  // --- NOVAS AÇÕES PARA RELATÓRIOS DE DESPESAS ---
-  const handleVisualizarDre = () => {
-    if (!rangeDre.inicio || !rangeDre.fim) return alert('Selecione as datas inicial e final!');
-    window.open(`/print/dre?inicio=${rangeDre.inicio}&fim=${rangeDre.fim}`, '_blank');
-  };
-
-  const handleVisualizarDespCC = () => {
-    if (!rangeDespCC.inicio || !rangeDespCC.fim) return alert('Selecione as datas inicial e final!');
-    let url = `/print/despesas-cc?inicio=${rangeDespCC.inicio}&fim=${rangeDespCC.fim}`;
-    if (rangeDespCC.centro_custo_id) url += `&centro_custo_id=${rangeDespCC.centro_custo_id}`;
-    window.open(url, '_blank');
-  };
-
-  const handleVisualizarDespForn = () => {
-    if (!rangeDespForn.inicio || !rangeDespForn.fim) return alert('Selecione as datas inicial e final!');
-    let url = `/print/despesas-fornecedor?inicio=${rangeDespForn.inicio}&fim=${rangeDespForn.fim}`;
-    if (rangeDespForn.fornecedor_id) url += `&fornecedor_id=${rangeDespForn.fornecedor_id}`;
-    window.open(url, '_blank');
-  };
 
   const formatarMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
@@ -270,21 +185,15 @@ export default function Relatorios() {
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
             <div>
                 <label className="block text-sm text-gray-500 mb-1">Data Inicial</label>
-                <input type="date" className="w-full p-2 border rounded" 
-                    value={filtrosFornecedor.inicio} 
-                    onChange={e => setFiltrosFornecedor({...filtrosFornecedor, inicio: e.target.value})} />
+                <input type="date" className="w-full p-2 border rounded" value={filtrosFornecedor.inicio} onChange={e => setFiltrosFornecedor({...filtrosFornecedor, inicio: e.target.value})} />
             </div>
             <div>
                 <label className="block text-sm text-gray-500 mb-1">Data Final</label>
-                <input type="date" className="w-full p-2 border rounded" 
-                    value={filtrosFornecedor.fim} 
-                    onChange={e => setFiltrosFornecedor({...filtrosFornecedor, fim: e.target.value})} />
+                <input type="date" className="w-full p-2 border rounded" value={filtrosFornecedor.fim} onChange={e => setFiltrosFornecedor({...filtrosFornecedor, fim: e.target.value})} />
             </div>
             <div>
                 <label className="block text-sm text-gray-500 mb-1">Status</label>
-                <select className="w-full p-2 border rounded" 
-                    value={filtrosFornecedor.status} 
-                    onChange={e => setFiltrosFornecedor({...filtrosFornecedor, status: e.target.value})}>
+                <select className="w-full p-2 border rounded" value={filtrosFornecedor.status} onChange={e => setFiltrosFornecedor({...filtrosFornecedor, status: e.target.value})}>
                     <option value="">STATUS (Todos)</option>
                     <option value="Pendente">Pendente</option>
                     <option value="Pago">Pago</option>
@@ -292,18 +201,12 @@ export default function Relatorios() {
             </div>
             <div>
                 <label className="block text-sm text-gray-500 mb-1">Fornecedor</label>
-                <select className="w-full p-2 border rounded" 
-                    value={filtrosFornecedor.fornecedor_id} 
-                    onChange={e => setFiltrosFornecedor({...filtrosFornecedor, fornecedor_id: e.target.value})}>
+                <select className="w-full p-2 border rounded" value={filtrosFornecedor.fornecedor_id} onChange={e => setFiltrosFornecedor({...filtrosFornecedor, fornecedor_id: e.target.value})}>
                     <option value="">Todos Fornecedores</option>
                     {listaFornecedores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
                 </select>
             </div>
-            
-            <button 
-                onClick={handleVisualizarFornecedor}
-                className="bg-[#0f172a] text-white px-4 py-2 rounded flex items-center justify-center gap-2 hover:bg-blue-900 shadow-lg transition-transform hover:scale-105"
-            >
+            <button onClick={handleVisualizarFornecedor} className="bg-[#0f172a] text-white px-4 py-2 rounded flex items-center justify-center gap-2 hover:bg-blue-900 shadow-lg transition-transform hover:scale-105">
               <ExternalLink size={18} /> Visualizar Relatório
             </button>
         </div>
@@ -315,31 +218,18 @@ export default function Relatorios() {
           <BarChart2 className="text-secondary"/> Relatório Comparativo de Gastos
         </h3>
 
-        {/* CONTROLES DE COMPARAÇÃO */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-              Origem dos Dados
-            </label>
-            <select
-              value={moduloComparacao}
-              onChange={(e) => setModuloComparacao(e.target.value)}
-              className="w-full p-2 border rounded text-sm font-semibold outline-none bg-white"
-            >
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Origem dos Dados</label>
+            <select value={moduloComparacao} onChange={(e) => setModuloComparacao(e.target.value)} className="w-full p-2 border rounded text-sm font-semibold outline-none bg-white">
               <option value="lancamentos">Contas a Pagar (Lançamentos)</option>
               <option value="despesas">Gestão de Despesas (Centros de Custo)</option>
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
-              Tipo de Comparação
-            </label>
-            <select
-              value={tipoComparacao}
-              onChange={(e) => setTipoComparacao(e.target.value)}
-              className="w-full p-2 border rounded text-sm font-semibold outline-none bg-white"
-            >
+            <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tipo de Comparação</label>
+            <select value={tipoComparacao} onChange={(e) => setTipoComparacao(e.target.value)} className="w-full p-2 border rounded text-sm font-semibold outline-none bg-white">
               <option value="mes_anterior">Mês atual vs Mês anterior</option>
               <option value="mes_ano_anterior">Mês atual vs Mesmo Mês do Ano Anterior</option>
               <option value="tri_anterior">Últimos 3 meses vs 3 meses Anteriores</option>
@@ -349,149 +239,36 @@ export default function Relatorios() {
           </div>
         </div>
 
-        {/* PAINEL DE RESULTADOS DA COMPARAÇÃO */}
         {loadingComparativo ? (
           <div className="text-center py-8 text-gray-500">Calculando comparação...</div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center pt-2">
-            
-            {/* PERÍODO ANTERIOR / BASE */}
             <div className="bg-gray-50 p-5 rounded-lg border border-gray-200 text-center">
-              <span className="text-xs font-bold uppercase text-gray-400">
-                Período Base ({intervalos?.labelP2})
-              </span>
-              <h4 className="text-2xl font-bold text-gray-700 mt-1">
-                {formatarMoeda(resultadoComparativo.totalP2)}
-              </h4>
-              <p className="text-xs text-gray-400 mt-1">
-                {resultadoComparativo.qtdP2} registros
-              </p>
+              <span className="text-xs font-bold uppercase text-gray-400">Período Base ({intervalos?.labelP2})</span>
+              <h4 className="text-2xl font-bold text-gray-700 mt-1">{formatarMoeda(resultadoComparativo.totalP2)}</h4>
+              <p className="text-xs text-gray-400 mt-1">{resultadoComparativo.qtdP2} registros</p>
             </div>
 
-            {/* CARD CENTRAL DE VARIAÇÃO */}
             <div className="p-5 rounded-lg border border-blue-100 bg-blue-50/30 text-center flex flex-col items-center justify-center">
               <span className="text-xs font-bold uppercase text-gray-500 mb-1">Variação Nominal / %</span>
-              
               <div className="flex items-center gap-2">
-                {resultadoComparativo.variacaoPerc > 0 ? (
-                  <TrendingUp size={24} className="text-red-500" />
-                ) : resultadoComparativo.variacaoPerc < 0 ? (
-                  <TrendingDown size={24} className="text-green-500" />
-                ) : null}
-
-                <span className={`text-2xl font-extrabold ${
-                  resultadoComparativo.variacaoPerc > 0 
-                    ? 'text-red-600' 
-                    : resultadoComparativo.variacaoPerc < 0 
-                    ? 'text-green-600' 
-                    : 'text-gray-700'
-                }`}>
-                  {resultadoComparativo.variacaoPerc > 0 ? '+' : ''}
-                  {resultadoComparativo.variacaoPerc.toFixed(1)}%
+                {resultadoComparativo.variacaoPerc > 0 ? <TrendingUp size={24} className="text-red-500" /> : resultadoComparativo.variacaoPerc < 0 ? <TrendingDown size={24} className="text-green-500" /> : null}
+                <span className={`text-2xl font-extrabold ${resultadoComparativo.variacaoPerc > 0 ? 'text-red-600' : resultadoComparativo.variacaoPerc < 0 ? 'text-green-600' : 'text-gray-700'}`}>
+                  {resultadoComparativo.variacaoPerc > 0 ? '+' : ''}{resultadoComparativo.variacaoPerc.toFixed(1)}%
                 </span>
               </div>
-
-              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full mt-2 ${
-                resultadoComparativo.diferenca > 0 
-                  ? 'bg-red-100 text-red-700' 
-                  : resultadoComparativo.diferenca < 0 
-                  ? 'bg-green-100 text-green-700' 
-                  : 'bg-gray-100 text-gray-600'
-              }`}>
-                Diferença: {resultadoComparativo.diferenca > 0 ? '+' : ''}
-                {formatarMoeda(resultadoComparativo.diferenca)}
+              <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full mt-2 ${resultadoComparativo.diferenca > 0 ? 'bg-red-100 text-red-700' : resultadoComparativo.diferenca < 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                Diferença: {resultadoComparativo.diferenca > 0 ? '+' : ''}{formatarMoeda(resultadoComparativo.diferenca)}
               </span>
             </div>
 
-            {/* PERÍODO ATUAL */}
             <div className="bg-blue-50/50 p-5 rounded-lg border border-blue-200 text-center">
-              <span className="text-xs font-bold uppercase text-primary">
-                Período Atual ({intervalos?.labelP1})
-              </span>
-              <h4 className="text-2xl font-bold text-primary mt-1">
-                {formatarMoeda(resultadoComparativo.totalP1)}
-              </h4>
-              <p className="text-xs text-gray-500 mt-1">
-                {resultadoComparativo.qtdP1} registros
-              </p>
+              <span className="text-xs font-bold uppercase text-primary">Período Atual ({intervalos?.labelP1})</span>
+              <h4 className="text-2xl font-bold text-primary mt-1">{formatarMoeda(resultadoComparativo.totalP1)}</h4>
+              <p className="text-xs text-gray-500 mt-1">{resultadoComparativo.qtdP1} registros</p>
             </div>
-
           </div>
         )}
-      </section>
-
-      {/* BLOCO 5: RELATÓRIO DE DESPESAS - ESTILO DRE (NOVO) */}
-      <section className="bg-white p-6 rounded-lg shadow border border-indigo-100">
-        <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
-          <PieChart className="text-indigo-600"/> Relatório de Despesas - Estilo DRE
-        </h3>
-        <div className="flex flex-col md:flex-row items-end gap-4">
-          <div>
-            <label className="block text-sm text-gray-500 mb-1">Data Inicial</label>
-            <input type="date" className="p-2 border rounded w-full md:w-auto" value={rangeDre.inicio} onChange={e => setRangeDre({...rangeDre, inicio: e.target.value})} />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-500 mb-1">Data Final</label>
-            <input type="date" className="p-2 border rounded w-full md:w-auto" value={rangeDre.fim} onChange={e => setRangeDre({...rangeDre, fim: e.target.value})} />
-          </div>
-          <button onClick={handleVisualizarDre} className="bg-indigo-700 text-white px-6 py-2 rounded flex items-center gap-2 hover:bg-indigo-800 shadow-lg transition-transform hover:scale-105">
-            <ExternalLink size={18} /> Gerar DRE
-          </button>
-        </div>
-      </section>
-
-      {/* BLOCO 6: DESPESAS POR CENTRO DE CUSTO (NOVO) */}
-      <section className="bg-white p-6 rounded-lg shadow border border-indigo-100">
-        <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
-          <Building className="text-indigo-600"/> Despesas por Centro de Custo
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-          <div>
-            <label className="block text-sm text-gray-500 mb-1">Data Inicial</label>
-            <input type="date" className="w-full p-2 border rounded" value={rangeDespCC.inicio} onChange={e => setRangeDespCC({...rangeDespCC, inicio: e.target.value})} />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-500 mb-1">Data Final</label>
-            <input type="date" className="w-full p-2 border rounded" value={rangeDespCC.fim} onChange={e => setRangeDespCC({...rangeDespCC, fim: e.target.value})} />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-500 mb-1">Centro de Custo</label>
-            <select className="w-full p-2 border rounded" value={rangeDespCC.centro_custo_id} onChange={e => setRangeDespCC({...rangeDespCC, centro_custo_id: e.target.value})}>
-              <option value="">Todos Centros de Custo</option>
-              {listaCentrosCusto.map(cc => <option key={cc.id} value={cc.id}>{cc.sigla} - {cc.descricao}</option>)}
-            </select>
-          </div>
-          <button onClick={handleVisualizarDespCC} className="bg-indigo-700 text-white px-4 py-2 rounded flex items-center justify-center gap-2 hover:bg-indigo-800 shadow-lg transition-transform hover:scale-105">
-            <ExternalLink size={18} /> Visualizar Relatório
-          </button>
-        </div>
-      </section>
-
-      {/* BLOCO 7: DESPESAS POR FORNECEDOR / PRESTADOR (NOVO) */}
-      <section className="bg-white p-6 rounded-lg shadow border border-indigo-100">
-        <h3 className="text-xl font-bold text-gray-700 mb-4 flex items-center gap-2">
-          <Users className="text-indigo-600"/> Despesas por Fornecedor / Prestador
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-          <div>
-            <label className="block text-sm text-gray-500 mb-1">Data Inicial</label>
-            <input type="date" className="w-full p-2 border rounded" value={rangeDespForn.inicio} onChange={e => setRangeDespForn({...rangeDespForn, inicio: e.target.value})} />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-500 mb-1">Data Final</label>
-            <input type="date" className="w-full p-2 border rounded" value={rangeDespForn.fim} onChange={e => setRangeDespForn({...rangeDespForn, fim: e.target.value})} />
-          </div>
-          <div>
-            <label className="block text-sm text-gray-500 mb-1">Fornecedor</label>
-            <select className="w-full p-2 border rounded" value={rangeDespForn.fornecedor_id} onChange={e => setRangeDespForn({...rangeDespForn, fornecedor_id: e.target.value})}>
-              <option value="">Todos Fornecedores</option>
-              {listaFornecedores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
-            </select>
-          </div>
-          <button onClick={handleVisualizarDespForn} className="bg-indigo-700 text-white px-4 py-2 rounded flex items-center justify-center gap-2 hover:bg-indigo-800 shadow-lg transition-transform hover:scale-105">
-            <ExternalLink size={18} /> Visualizar Relatório
-          </button>
-        </div>
       </section>
 
     </div>
