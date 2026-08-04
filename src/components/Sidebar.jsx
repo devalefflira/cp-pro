@@ -14,7 +14,8 @@ import {
   Crown, 
   LogOut, 
   ChevronLeft, 
-  ChevronRight 
+  ChevronRight,
+  ArrowLeftRight 
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -34,6 +35,7 @@ export default function Sidebar() {
     { path: '/incluir', label: 'Incluir Lançamento', icon: PlusCircle },
     { path: '/listagem', label: 'Listagem', icon: List },
     { path: '/despesas', label: 'Despesas', icon: Wallet },
+    { path: '/conciliacao', label: 'Conciliação Bancária', icon: ArrowLeftRight },
     { path: '/relatorios', label: 'Relatórios', icon: FileText },
     { path: '/etiquetas', label: 'Etiquetas', icon: Tag },
     { path: '/tarefas', label: 'Tarefas', icon: CheckSquare },

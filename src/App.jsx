@@ -13,12 +13,13 @@ import Etiquetas from './pages/Etiquetas';
 import EtiquetasPrint from './pages/EtiquetasPrint'; 
 import RelatorioPeriodoPrint from './pages/RelatorioPeriodoPrint';
 import RelatorioFornecedorPrint from './pages/RelatorioFornecedorPrint';
-import Planos from './pages/Planos'; // <--- IMPORTAÇÃO
+import Planos from './pages/Planos';
 import Despesas from './pages/Despesas';
 import RelatorioDrePrint from './pages/RelatorioDrePrint';
 import RelatorioDespesasCentroCustoPrint from './pages/RelatorioDespesasCentroCustoPrint';
 import RelatorioDespesasFornecedorPrint from './pages/RelatorioDespesasFornecedorPrint';
 import RelatorioEvolucaoContaPrint from './pages/RelatorioEvolucaoContaPrint';
+import Conciliacao from './pages/Conciliacao';
 
 function App() {
   return (
@@ -40,15 +41,16 @@ function App() {
         <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
         <Route path="/incluir" element={<MainLayout><IncluirLancamento /></MainLayout>} />
         <Route path="/listagem" element={<MainLayout><Listagem /></MainLayout>} />
+        <Route path="/despesas" element={<MainLayout><Despesas /></MainLayout>} />
+        <Route path="/conciliacao" element={<MainLayout><Conciliacao /></MainLayout>} /> {/* 👈 Corrigido aqui */}
         <Route path="/relatorios" element={<MainLayout><Relatorios /></MainLayout>} />
         <Route path="/etiquetas" element={<MainLayout><Etiquetas /></MainLayout>} />
         <Route path="/tarefas" element={<MainLayout><Tarefas /></MainLayout>} />
         <Route path="/calculadoras" element={<MainLayout><Calculadoras /></MainLayout>} />
         <Route path="/grupos" element={<MainLayout><Grupos /></MainLayout>} />
         
-        {/* ROTA DE PLANOS (Pode ficar fora ou dentro do layout, coloquei fora para dar destaque total) */}
+        {/* ROTA DE PLANOS */}
         <Route path="/planos" element={<Planos />} /> 
-        <Route path="/despesas" element={<MainLayout><Despesas /></MainLayout>} />
       </Routes>
     </BrowserRouter>
   );
