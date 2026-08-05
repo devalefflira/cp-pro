@@ -20,6 +20,7 @@ import RelatorioDespesasCentroCustoPrint from './pages/RelatorioDespesasCentroCu
 import RelatorioDespesasFornecedorPrint from './pages/RelatorioDespesasFornecedorPrint';
 import RelatorioEvolucaoContaPrint from './pages/RelatorioEvolucaoContaPrint';
 import Conciliacao from './pages/Conciliacao';
+import UsuariosAdmin from './pages/UsuariosAdmin'; // 👈 IMPORTAÇÃO ADICIONADA AQUI
 
 function App() {
   return (
@@ -42,7 +43,8 @@ function App() {
         <Route path="/incluir" element={<MainLayout><IncluirLancamento /></MainLayout>} />
         <Route path="/listagem" element={<MainLayout><Listagem /></MainLayout>} />
         <Route path="/despesas" element={<MainLayout><Despesas /></MainLayout>} />
-        <Route path="/conciliacao" element={<MainLayout><Conciliacao /></MainLayout>} /> {/* 👈 Corrigido aqui */}
+        <Route path="/conciliacao" element={<MainLayout><Conciliacao /></MainLayout>} />
+        <Route path="/usuarios" element={<MainLayout><UsuariosAdmin /></MainLayout>} /> {/* 👈 ROTA CONFIGURADA */}
         <Route path="/relatorios" element={<MainLayout><Relatorios /></MainLayout>} />
         <Route path="/etiquetas" element={<MainLayout><Etiquetas /></MainLayout>} />
         <Route path="/tarefas" element={<MainLayout><Tarefas /></MainLayout>} />
