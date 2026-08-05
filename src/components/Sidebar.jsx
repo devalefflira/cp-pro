@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
-import { 
-  LayoutDashboard, PlusCircle, List, Wallet, ArrowLeftRight, FileText, 
-  Tag, CheckSquare, Calculator, Settings, Crown, LogOut, ChevronLeft, 
-  ChevronRight, ShieldAlert, Users 
+import {
+  LayoutDashboard, PlusCircle, List, Wallet, ArrowLeftRight, FileText,
+  Tag, CheckSquare, Calculator, Settings, Crown, LogOut, ChevronLeft,
+  ChevronRight, ShieldAlert, Users
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -53,15 +53,13 @@ export default function Sidebar() {
     setLoadingAdmin(false);
   };
 
+  // Substitua o array menuItems no Sidebar.jsx por este:
   const menuItems = [
-    { path: '/dashboard', label: 'Visão Geral', icon: LayoutDashboard, roles: ['admin', 'gestor', 'user'] },
-    { path: '/incluir', label: 'Incluir Lançamento', icon: PlusCircle, roles: ['admin', 'gestor', 'user'] },
-    { path: '/listagem', label: 'Listagem', icon: List, roles: ['admin', 'gestor', 'user'] },
+    { path: '/contas-a-pagar', label: 'Contas a Pagar', icon: LayoutDashboard, roles: ['admin', 'gestor', 'user'] },
     { path: '/despesas', label: 'Despesas', icon: Wallet, roles: ['admin', 'gestor'] },
     { path: '/conciliacao', label: 'Conciliação Bancária', icon: ArrowLeftRight, roles: ['admin', 'gestor'] },
     { path: '/usuarios', label: 'Gestão de Usuários', icon: Users, roles: ['admin'] },
-    { path: '/relatorios', label: 'Relatórios', icon: FileText, roles: ['admin', 'gestor'] },
-    { path: '/etiquetas', label: 'Etiquetas', icon: Tag, roles: ['admin', 'gestor', 'user'] },
+    { path: '/relatorios', label: 'Relatórios Gerenciais', icon: FileText, roles: ['admin', 'gestor'] },
     { path: '/tarefas', label: 'Tarefas', icon: CheckSquare, roles: ['admin', 'gestor', 'user'] },
     { path: '/calculadoras', label: 'Calculadoras', icon: Calculator, roles: ['admin', 'gestor', 'user'] },
     { path: '/grupos', label: 'Cadastros Auxiliares', icon: Settings, roles: ['admin'] },
@@ -69,8 +67,8 @@ export default function Sidebar() {
 
   return (
     <aside className={`bg-[#003366] text-white min-h-screen p-4 flex flex-col justify-between transition-all duration-300 relative ${collapsed ? 'w-20' : 'w-64'}`}>
-      
-      <button 
+
+      <button
         onClick={() => setCollapsed(!collapsed)}
         className="absolute -right-3 top-7 bg-white text-[#003366] p-1 rounded-full border border-gray-300 shadow-md hover:bg-gray-100 transition-colors z-50"
       >
@@ -99,9 +97,8 @@ export default function Sidebar() {
                 key={item.path}
                 to={item.path}
                 title={collapsed ? item.label : ''}
-                className={`flex items-center gap-3 p-3 rounded-lg transition-colors font-semibold text-sm ${
-                  active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-300 hover:bg-[#00264d] hover:text-white'
-                } ${collapsed ? 'justify-center' : ''}`}
+                className={`flex items-center gap-3 p-3 rounded-lg transition-colors font-semibold text-sm ${active ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-300 hover:bg-[#00264d] hover:text-white'
+                  } ${collapsed ? 'justify-center' : ''}`}
               >
                 <Icon size={20} className="shrink-0" />
                 {!collapsed && <span className="truncate">{item.label}</span>}
