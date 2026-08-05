@@ -1,149 +1,111 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
-import { useNavigate } from 'react-router-dom';
-import { Eraser, PlusCircle, CheckCircle, ChevronDown, Search, History, X } from 'lucide-react';
+import { PlusCircle, RotateCcw, Save, CheckCircle, Search, ChevronDown, Check } from 'lucide-react';
 
-// --- COMPONENTE CUSTOMIZADO: SELECT PESQUISÁVEL ---
-const SearchableSelect = ({ 
-  label, 
-  options, 
-  value, 
-  onChange, 
-  onNext, 
-  placeholder, 
-  fieldKey, 
-  inputRef 
-}) => {
+// COMPONENTE COMBOBOX REUTILIZÁVEL COM TRATAMENTO SEGURO DE BUSCA
+function SearchableSelect({ label, placeholder, options, value, onChange, required, displayKey = 'nome', valueKey = 'id' }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const wrapperRef = useRef(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = useRef(null);
+  const inputSearchRef = useRef(null);
 
-  useEffect(() => {
-    if (!value) {
-      setSearch('');
-    } else {
-      const selected = options.find(o => o.id === value);
-      if (selected) setSearch(selected[fieldKey]);
-    }
-  }, [value, options, fieldKey]);
-
-  const filteredOptions = options.filter(opt => 
-    opt[fieldKey].toLowerCase().includes(search.toLowerCase())
-  );
-
-  const handleSelect = (option) => {
-    onChange(option.id);
-    setSearch(option[fieldKey]);
-    setIsOpen(false);
-    if (onNext) onNext(); 
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      if (filteredOptions.length > 0) {
-        handleSelect(filteredOptions[0]);
-      } else if (onNext) {
-        onNext(); 
-      }
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setIsOpen(true);
-    } else if (e.key === 'Tab') {
-      setIsOpen(false);
-    }
-  };
+  const selectedOption = options.find(opt => String(opt[valueKey]) === String(value));
 
   useEffect(() => {
     function handleClickOutside(event) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+      if (containerRef.current && !containerRef.current.contains(event.target)) {
         setIsOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [wrapperRef]);
+  }, []);
+
+  // Filtro resiliente (trata campos nulos e indefinições)
+  const filteredOptions = options.filter(opt => {
+    const text = String(opt[displayKey] || opt.nome || opt.descricao || '').toLowerCase();
+    return text.includes((searchTerm || '').toLowerCase());
+  });
+
+  const handleSelect = (opt) => {
+    onChange(opt[valueKey]);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
 
   return (
-    <div className="relative mb-4" ref={wrapperRef}>
-      <label className="block font-semibold text-gray-700 mb-1">{label}</label>
-      <div className="relative">
-        <input
-          ref={inputRef}
-          type="text"
-          className="w-full p-3 border rounded bg-white focus:ring-2 focus:ring-secondary outline-none pr-10"
-          placeholder={placeholder}
-          value={search}
-          onClick={() => setIsOpen(true)}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setIsOpen(true);
-            if(e.target.value === '') onChange('');
-          }}
-          onKeyDown={handleKeyDown}
-        />
-        <div className="absolute right-3 top-3 text-gray-400 pointer-events-none">
-          {isOpen ? <Search size={20}/> : <ChevronDown size={20}/>}
-        </div>
-      </div>
+    <div ref={containerRef} className="relative w-full">
+      <label className="block font-bold text-gray-700 mb-1">{label} {required && '*'}</label>
+      
+      {/* Botão do Campo */}
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen(!isOpen);
+          setTimeout(() => inputSearchRef.current?.focus(), 50);
+        }}
+        className={`w-full p-2.5 border rounded-lg bg-white font-semibold text-left flex justify-between items-center outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary ${
+          !selectedOption ? 'text-gray-400 font-normal' : 'text-gray-800'
+        }`}
+      >
+        <span className="truncate">
+          {selectedOption ? (selectedOption[displayKey] || selectedOption.nome || selectedOption.descricao) : placeholder}
+        </span>
+        <ChevronDown size={16} className="text-gray-400 shrink-0 ml-1" />
+      </button>
 
-      {isOpen && filteredOptions.length > 0 && (
-        <ul className="absolute z-50 w-full bg-white border border-gray-200 mt-1 max-h-60 overflow-y-auto rounded shadow-lg">
-          {filteredOptions.map((opt) => (
-            <li
-              key={opt.id}
-              onClick={() => handleSelect(opt)}
-              className="p-3 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0 text-gray-700"
-            >
-              {opt[fieldKey]}
-            </li>
-          ))}
-        </ul>
-      )}
-      {isOpen && filteredOptions.length === 0 && (
-        <div className="absolute z-50 w-full bg-white border p-3 text-gray-500 italic shadow-lg">
-            Nenhum resultado encontrado.
+      {/* Menu Suspenso de Busca */}
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-60 overflow-hidden flex flex-col">
+          <div className="p-2 border-b bg-gray-50 flex items-center gap-2">
+            <Search size={14} className="text-gray-400 shrink-0" />
+            <input
+              ref={inputSearchRef}
+              type="text"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Digite para filtrar..."
+              className="w-full bg-transparent text-xs outline-none font-medium text-gray-800"
+            />
+          </div>
+
+          <div className="overflow-y-auto max-h-48 divide-y divide-gray-50">
+            {filteredOptions.length === 0 ? (
+              <div className="p-3 text-center text-gray-400 text-xs italic">Nenhum resultado encontrado.</div>
+            ) : (
+              filteredOptions.map(opt => (
+                <button
+                  key={opt[valueKey]}
+                  type="button"
+                  onClick={() => handleSelect(opt)}
+                  className={`w-full text-left px-3 py-2 text-xs font-semibold hover:bg-indigo-50 hover:text-indigo-900 flex justify-between items-center transition-colors ${
+                    String(opt[valueKey]) === String(value) ? 'bg-indigo-50/60 text-indigo-900 font-bold' : 'text-gray-700'
+                  }`}
+                >
+                  <span className="truncate">{opt[displayKey] || opt.nome || opt.descricao}</span>
+                  {String(opt[valueKey]) === String(value) && <Check size={14} className="text-indigo-600 shrink-0" />}
+                </button>
+              ))
+            )}
+          </div>
         </div>
       )}
     </div>
   );
-};
-
+}
 
 export default function IncluirLancamento() {
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const dataInputRef = useRef(null);
+  const formRef = useRef(null);
 
-  // --- ESTADOS DO MODAL ÚLTIMOS LANÇAMENTOS ---
-  const [modalUltimosAberto, setModalUltimosAberto] = useState(false);
-  const [ultimosLancamentos, setUltimosLancamentos] = useState([]);
+  const [fornecedores, setFornecedores] = useState([]);
+  const [tiposDoc, setTiposDoc] = useState([]);
+  const [parcelas, setParcelas] = useState([]);
+  const [razoes, setRazoes] = useState([]);
+  const [bancos, setBancos] = useState([]);
 
-  // --- REFERÊNCIAS ---
-  const refs = {
-    vencimento: useRef(),
-    fornecedor: useRef(),
-    tipo: useRef(),
-    doc: useRef(),
-    nf: useRef(),
-    parcela: useRef(),
-    razao: useRef(),
-    banco: useRef(),
-    status: useRef(),
-    valor: useRef(),
-    obs: useRef(),
-    btnSalvar: useRef()
-  };
-
-  const [listas, setListas] = useState({
-    fornecedores: [],
-    tipos_documento: [],
-    bancos: [],
-    razoes: [],
-    parcelas: []
-  });
-
-  const formInicial = {
-    data_vencimento: '',
+  const [form, setForm] = useState({
+    data_vencimento: new Date().toISOString().split('T')[0],
     fornecedor_id: '',
     tipo_documento_id: '',
     numero_documento: '',
@@ -154,367 +116,302 @@ export default function IncluirLancamento() {
     status: 'Pendente',
     valor: '',
     observacao: ''
-  };
-  const [form, setForm] = useState(formInicial);
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [mensagemSucesso, setMensagemSucesso] = useState('');
 
   useEffect(() => {
-    async function carregarListas() {
-      const [f, t, b, r, p] = await Promise.all([
-        supabase.from('fornecedores').select('*').order('nome'),
-        supabase.from('tipos_documento').select('*').order('descricao'),
-        supabase.from('bancos').select('*').order('nome'),
-        supabase.from('razoes').select('*').order('nome'),
-        supabase.from('parcelas').select('*').order('descricao')
-      ]);
-
-      setListas({
-        fornecedores: f.data || [],
-        tipos_documento: t.data || [],
-        bancos: b.data || [],
-        razoes: r.data || [],
-        parcelas: p.data || []
-      });
+    carregarListasAuxiliares();
+    if (dataInputRef.current) {
+      dataInputRef.current.focus();
     }
-    carregarListas();
   }, []);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setForm({ ...form, [name]: value });
+  const carregarListasAuxiliares = async () => {
+    const [resForn, resTipos, resParc, resRaz, resBancos] = await Promise.all([
+      supabase.from('fornecedores').select('*').order('nome'),
+      supabase.from('tipos_documento').select('*').order('descricao'),
+      supabase.from('parcelas').select('*').order('descricao'),
+      supabase.from('razoes').select('*').order('nome'),
+      supabase.from('bancos').select('*').order('nome')
+    ]);
+
+    // Mapeia garantindo o atributo nome completo
+    const fornFormatados = (resForn.data || []).map(f => ({
+      id: f.id,
+      nome: f.cpf_cnpj ? `${f.nome} (${f.cpf_cnpj})` : f.nome
+    }));
+
+    setFornecedores(fornFormatados);
+    setTiposDoc(resTipos.data || []);
+    setParcelas(resParc.data || []);
+    setRazoes(resRaz.data || []);
+    setBancos(resBancos.data || []);
   };
 
-  const handleEnterKey = (e, nextRef) => {
-    if (e.key === 'Enter') {
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
       e.preventDefault();
-      nextRef?.current?.focus();
+      const formElements = Array.from(
+        formRef.current.querySelectorAll('input, select, textarea, button[type="button"], button[type="submit"]')
+      ).filter(el => !el.disabled && el.type !== 'hidden');
+
+      const currentIndex = formElements.indexOf(e.target);
+      if (currentIndex !== -1 && currentIndex < formElements.length - 1) {
+        formElements[currentIndex + 1].focus();
+      }
     }
   };
 
-  const formatarMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-  const formatarData = (d) => d ? d.split('-').reverse().join('/') : '-';
+  const handleSalvar = async (e) => {
+    if (e) e.preventDefault();
 
-  const ajustarDataUtil = (dataStr) => {
-    if (!dataStr) return dataStr;
-    const data = new Date(dataStr + 'T12:00:00');
-    const diaSemana = data.getDay(); 
-
-    if (diaSemana === 6) data.setDate(data.getDate() + 2);
-    else if (diaSemana === 0) data.setDate(data.getDate() + 1);
-    else return dataStr;
-    
-    return data.toISOString().split('T')[0];
-  };
-
-  const handleAbrirUltimos = async () => {
-    const { data, error } = await supabase
-      .from('lancamentos')
-      .select(`*, fornecedores(nome), tipos_documento(descricao)`)
-      .order('created_at', { ascending: false })
-      .limit(5);
-
-    if (error) {
-      alert('Erro ao buscar últimos lançamentos: ' + error.message);
-    } else {
-      setUltimosLancamentos([...data].reverse());
-      setModalUltimosAberto(true);
-    }
-  };
-
-  // --- VALIDAÇÃO E SALVAMENTO ---
-  const executarSalvamento = async () => {
-    // Validação de TODOS os campos obrigatórios (exceto observação)
-    if (
-        !form.data_vencimento || 
-        !form.fornecedor_id ||
-        !form.tipo_documento_id ||
-        !form.numero_documento ||
-        !form.nota_fiscal ||
-        !form.parcela_id ||
-        !form.razao_id ||
-        !form.banco_id ||
-        !form.valor
-    ) {
-      alert("Por favor, preencha todos os campos obrigatórios (*)");
-      return false;
+    if (!form.data_vencimento || !form.fornecedor_id || !form.valor) {
+      return alert("Preencha todos os campos obrigatórios (*).");
     }
 
     setLoading(true);
-    const vencimentoReal = ajustarDataUtil(form.data_vencimento);
 
-    const { error } = await supabase.from('lancamentos').insert([{
+    const payload = {
       ...form,
-      data_vencimento: vencimentoReal,
-      valor: parseFloat(form.valor),
-      // Removemos os '|| null' pois agora são obrigatórios, exceto observação
-      fornecedor_id: form.fornecedor_id,
-      tipo_documento_id: form.tipo_documento_id,
-      parcela_id: form.parcela_id,
-      razao_id: form.razao_id,
-      banco_id: form.banco_id
-    }]);
+      fornecedor_id: parseInt(form.fornecedor_id),
+      tipo_documento_id: form.tipo_documento_id ? parseInt(form.tipo_documento_id) : null,
+      parcela_id: form.parcela_id ? parseInt(form.parcela_id) : null,
+      razao_id: form.razao_id ? parseInt(form.razao_id) : null,
+      banco_id: form.banco_id ? parseInt(form.banco_id) : null,
+      valor: parseFloat(form.valor)
+    };
 
-    setLoading(false);
+    const { error } = await supabase.from('lancamentos').insert([payload]);
 
     if (error) {
-      alert('Erro ao salvar: ' + error.message);
-      return false;
+      alert("Erro ao salvar lançamento: " + error.message);
+    } else {
+      setMensagemSucesso("Lançamento salvo com sucesso!");
+      setTimeout(() => setMensagemSucesso(''), 4000);
+
+      setForm({
+        data_vencimento: new Date().toISOString().split('T')[0],
+        fornecedor_id: '',
+        tipo_documento_id: '',
+        numero_documento: '',
+        nota_fiscal: '',
+        parcela_id: '',
+        razao_id: '',
+        banco_id: '',
+        status: 'Pendente',
+        valor: '',
+        observacao: ''
+      });
+
+      if (dataInputRef.current) {
+        dataInputRef.current.focus();
+      }
     }
-    return true;
+    setLoading(false);
   };
 
-  const handleSalvarSair = async (e) => {
-    if(e) e.preventDefault();
-    const sucesso = await executarSalvamento();
-    if (sucesso) {
-      alert('Lançamento salvo! Indo para a listagem...');
-      navigate('/listagem');
-    }
-  };
-
-  const handleSalvarNovo = async (e) => {
-    if(e) e.preventDefault();
-    const sucesso = await executarSalvamento();
-    if (sucesso) {
-      alert('Lançamento salvo com sucesso!');
-      setForm(formInicial); 
-      setTimeout(() => refs.vencimento.current?.focus(), 100);
-      window.scrollTo(0, 0);
-    }
+  const handleLimpar = () => {
+    setForm({
+      data_vencimento: new Date().toISOString().split('T')[0],
+      fornecedor_id: '',
+      tipo_documento_id: '',
+      numero_documento: '',
+      nota_fiscal: '',
+      parcela_id: '',
+      razao_id: '',
+      banco_id: '',
+      status: 'Pendente',
+      valor: '',
+      observacao: ''
+    });
+    if (dataInputRef.current) dataInputRef.current.focus();
   };
 
   return (
-    <div className="flex justify-center pb-10">
-      <div className="w-full max-w-2xl bg-white p-8 rounded-lg shadow-md border border-gray-200 relative">
-        
-        {/* CABEÇALHO DO CARD COM BOTÃO ÚLTIMOS */}
-        <div className="flex flex-col md:flex-row justify-between items-center mb-8 border-b pb-4 gap-4">
-            <h2 className="text-3xl font-bold text-primary text-center md:text-left">Incluir Lançamento</h2>
-            <button
-                onClick={handleAbrirUltimos}
-                type="button"
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-full shadow-lg transition-transform hover:scale-105 flex items-center gap-2 text-sm"
-            >
-                <History size={18} /> Últimos Lançamentos
-            </button>
+    <div className="space-y-6">
+      
+      {mensagemSucesso && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm">
+          <CheckCircle size={18} className="text-emerald-600"/> {mensagemSucesso}
+        </div>
+      )}
+
+      <div className="bg-white p-6 rounded-xl border shadow-sm space-y-6">
+        <div className="flex justify-between items-center border-b pb-3">
+          <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
+            <PlusCircle className="text-primary" size={22} /> Novo Lançamento de Conta a Pagar
+          </h3>
+          <span className="text-xs text-gray-400 font-semibold">Pressione <strong>Enter</strong> para avançar para o próximo campo</span>
         </div>
 
-        <form className="flex flex-col gap-4">
+        <form ref={formRef} onKeyDown={handleKeyDown} onSubmit={handleSalvar} className="space-y-6 text-xs">
           
-          {/* Data Vencimento */}
-          <div>
-            <label className="block font-semibold text-gray-700 mb-1">Data Vencimento *</label>
-            <input 
-              ref={refs.vencimento}
-              type="date" 
-              name="data_vencimento"
-              value={form.data_vencimento} 
-              onChange={handleChange}
-              onKeyDown={(e) => handleEnterKey(e, refs.fornecedor)}
-              className="w-full p-3 border rounded bg-gray-50 focus:ring-2 focus:ring-secondary outline-none"
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {/* 1. DATA DE VENCIMENTO */}
+            <div>
+              <label className="block font-bold text-gray-700 mb-1">Data Vencimento *</label>
+              <input
+                ref={dataInputRef}
+                type="date"
+                required
+                value={form.data_vencimento}
+                onChange={e => setForm({ ...form, data_vencimento: e.target.value })}
+                className="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              />
+            </div>
+
+            {/* 2. FORNECEDOR / PRESTADOR (COM BUSCA) */}
+            <SearchableSelect
+              label="Fornecedor / Prestador"
+              placeholder="Digite para buscar fornecedor..."
+              options={fornecedores}
+              value={form.fornecedor_id}
+              onChange={val => setForm({ ...form, fornecedor_id: val })}
               required
+              displayKey="nome"
+              valueKey="id"
             />
-            <span className="text-xs text-gray-400 mt-1 block">Finais de semana serão ajustados para segunda-feira automaticamente.</span>
-          </div>
 
-          {/* Fornecedor */}
-          <SearchableSelect
-            inputRef={refs.fornecedor}
-            label="Fornecedor *"
-            placeholder="Digite para buscar..."
-            options={listas.fornecedores}
-            fieldKey="nome"
-            value={form.fornecedor_id}
-            onChange={(val) => setForm({...form, fornecedor_id: val})}
-            onNext={() => refs.tipo.current?.focus()}
-          />
-
-          {/* Tipo de Documento */}
-          <SearchableSelect
-            inputRef={refs.tipo}
-            label="Tipo de Documento *"
-            placeholder="Selecione o tipo..."
-            options={listas.tipos_documento}
-            fieldKey="descricao"
-            value={form.tipo_documento_id}
-            onChange={(val) => setForm({...form, tipo_documento_id: val})}
-            onNext={() => refs.doc.current?.focus()}
-          />
-
-          {/* Nº Documento */}
-          <div>
-            <label className="block font-semibold text-gray-700 mb-1">Nº Documento *</label>
-            <input 
-              ref={refs.doc}
-              type="text" 
-              name="numero_documento" 
-              value={form.numero_documento} 
-              onChange={handleChange} 
-              onKeyDown={(e) => handleEnterKey(e, refs.nf)}
-              className="w-full p-3 border rounded bg-gray-50 focus:ring-2 focus:ring-secondary outline-none" 
-            />
-          </div>
-
-          {/* Nota Fiscal */}
-          <div>
-            <label className="block font-semibold text-gray-700 mb-1">Nota Fiscal *</label>
-            <input 
-              ref={refs.nf}
-              type="text" 
-              name="nota_fiscal" 
-              value={form.nota_fiscal} 
-              onChange={handleChange} 
-              onKeyDown={(e) => handleEnterKey(e, refs.parcela)}
-              className="w-full p-3 border rounded bg-gray-50 focus:ring-2 focus:ring-secondary outline-none" 
-            />
-          </div>
-
-          {/* Parcela */}
-          <SearchableSelect
-            inputRef={refs.parcela}
-            label="Parcela *"
-            placeholder="Selecione..."
-            options={listas.parcelas}
-            fieldKey="descricao"
-            value={form.parcela_id}
-            onChange={(val) => setForm({...form, parcela_id: val})}
-            onNext={() => refs.razao.current?.focus()}
-          />
-
-          {/* Razão / Centro de Custo */}
-          <SearchableSelect
-            inputRef={refs.razao}
-            label="Razão / Centro de Custo *"
-            placeholder="Selecione..."
-            options={listas.razoes}
-            fieldKey="nome"
-            value={form.razao_id}
-            onChange={(val) => setForm({...form, razao_id: val})}
-            onNext={() => refs.banco.current?.focus()}
-          />
-
-          {/* Banco */}
-          <SearchableSelect
-            inputRef={refs.banco}
-            label="Banco *"
-            placeholder="Selecione..."
-            options={listas.bancos}
-            fieldKey="nome"
-            value={form.banco_id}
-            onChange={(val) => setForm({...form, banco_id: val})}
-            onNext={() => refs.status.current?.focus()}
-          />
-
-          {/* Status */}
-          <div>
-            <label className="block font-semibold text-gray-700 mb-1">Status *</label>
-            <select 
-              ref={refs.status}
-              name="status" 
-              value={form.status} 
-              onChange={handleChange} 
-              onKeyDown={(e) => handleEnterKey(e, refs.valor)}
-              className={`w-full p-3 border rounded font-bold outline-none focus:ring-2 focus:ring-secondary ${form.status === 'Pago' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}
-            >
-              <option value="Pendente">Pendente</option>
-              <option value="Pago">Pago</option>
-            </select>
-          </div>
-
-          {/* Valor */}
-          <div>
-            <label className="block font-semibold text-gray-700 mb-1">Valor (R$) *</label>
-            <input 
-              ref={refs.valor}
-              type="number" 
-              step="0.01" 
-              name="valor"
-              placeholder="0.00"
-              value={form.valor} 
-              onChange={handleChange}
-              onKeyDown={(e) => handleEnterKey(e, refs.obs)}
-              className="w-full p-3 border rounded bg-gray-50 focus:ring-2 focus:ring-secondary outline-none text-xl font-mono"
+            {/* 3. TIPO DE DOCUMENTO (COM BUSCA) */}
+            <SearchableSelect
+              label="Tipo de Documento"
+              placeholder="Digite para buscar tipo..."
+              options={tiposDoc}
+              value={form.tipo_documento_id}
+              onChange={val => setForm({ ...form, tipo_documento_id: val })}
               required
+              displayKey="descricao"
+              valueKey="id"
+            />
+
+            {/* 4. Nº DO DOCUMENTO */}
+            <div>
+              <label className="block font-bold text-gray-700 mb-1">Nº Documento *</label>
+              <input
+                type="text"
+                value={form.numero_documento}
+                onChange={e => setForm({ ...form, numero_documento: e.target.value })}
+                className="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                placeholder="Número identificador"
+              />
+            </div>
+
+            {/* 5. NOTA FISCAL */}
+            <div>
+              <label className="block font-bold text-gray-700 mb-1">Nota Fiscal *</label>
+              <input
+                type="text"
+                value={form.nota_fiscal}
+                onChange={e => setForm({ ...form, nota_fiscal: e.target.value })}
+                className="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                placeholder="Número da Nota Fiscal"
+              />
+            </div>
+
+            {/* 6. PARCELA */}
+            <div>
+              <label className="block font-bold text-gray-700 mb-1">Parcela *</label>
+              <select
+                value={form.parcela_id}
+                onChange={e => setForm({ ...form, parcela_id: e.target.value })}
+                className="w-full p-2.5 border rounded-lg bg-white font-semibold outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              >
+                <option value="">Selecione a parcela...</option>
+                {parcelas.map(p => (
+                  <option key={p.id} value={p.id}>{p.descricao}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* 7. RAZÃO / CENTRO DE CUSTO (COM BUSCA) */}
+            <SearchableSelect
+              label="Razão / Centro de Custo"
+              placeholder="Digite para buscar razão..."
+              options={razoes}
+              value={form.razao_id}
+              onChange={val => setForm({ ...form, razao_id: val })}
+              required
+              displayKey="nome"
+              valueKey="id"
+            />
+
+            {/* 8. BANCO (COM BUSCA) */}
+            <SearchableSelect
+              label="Banco"
+              placeholder="Digite para buscar banco..."
+              options={bancos}
+              value={form.banco_id}
+              onChange={val => setForm({ ...form, banco_id: val })}
+              required
+              displayKey="nome"
+              valueKey="id"
+            />
+
+            {/* 9. STATUS */}
+            <div>
+              <label className="block font-bold text-gray-700 mb-1">Status *</label>
+              <select
+                value={form.status}
+                onChange={e => setForm({ ...form, status: e.target.value })}
+                className="w-full p-2.5 border rounded-lg bg-amber-50 text-amber-900 font-bold outline-none border-amber-200"
+              >
+                <option value="Pendente">Pendente</option>
+                <option value="Pago">Pago</option>
+              </select>
+            </div>
+
+            {/* 10. VALOR (R$) */}
+            <div>
+              <label className="block font-bold text-gray-800 mb-1 text-sm">Valor (R$) *</label>
+              <input
+                type="number"
+                step="0.01"
+                required
+                value={form.valor}
+                onChange={e => setForm({ ...form, valor: e.target.value })}
+                onWheel={(e) => e.target.blur()}
+                className="w-full p-2.5 border rounded-lg bg-white font-extrabold text-indigo-900 text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                placeholder="0,00"
+              />
+            </div>
+
+          </div>
+
+          {/* 11. OBSERVAÇÃO */}
+          <div>
+            <label className="block font-bold text-gray-700 mb-1">Observação</label>
+            <textarea
+              rows={2}
+              value={form.observacao}
+              onChange={e => setForm({ ...form, observacao: e.target.value })}
+              className="w-full p-2.5 border rounded-lg bg-gray-50 font-medium outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+              placeholder="Anotações adicionais do lançamento..."
             />
           </div>
 
-          {/* Observação (Único opcional) */}
-          <div>
-            <label className="block font-semibold text-gray-700 mb-1">Observação</label>
-            <textarea 
-              ref={refs.obs}
-              name="observacao" 
-              rows="3"
-              value={form.observacao} 
-              onChange={handleChange}
-              className="w-full p-3 border rounded bg-gray-50 focus:ring-2 focus:ring-secondary outline-none"
-            ></textarea>
-          </div>
-
-          {/* BOTÕES */}
-          <div className="flex flex-col md:flex-row justify-end gap-4 mt-6 pt-6 border-t">
-            <button 
-              type="button" 
-              onClick={() => setForm(formInicial)}
-              className="flex items-center justify-center gap-2 px-6 py-3 border border-gray-300 rounded text-gray-600 hover:bg-gray-100 font-semibold order-3 md:order-1"
-            >
-              <Eraser size={20} /> Limpar
-            </button>
-            <button 
-              ref={refs.btnSalvar}
+          <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t">
+            <button
               type="button"
-              onClick={handleSalvarNovo}
-              disabled={loading}
-              className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded font-bold shadow transition-colors disabled:opacity-50 order-2"
+              onClick={handleLimpar}
+              className="px-5 py-2.5 border border-gray-300 rounded-lg font-bold text-gray-600 hover:bg-gray-50 flex items-center justify-center gap-1.5 transition-colors"
             >
-              <PlusCircle size={20} /> {loading ? 'Salvando...' : 'Salvar e Adicionar Novo'}
+              <RotateCcw size={15}/> Limpar
             </button>
-            <button 
-              type="button" 
-              onClick={handleSalvarSair}
+
+            <button
+              type="submit"
               disabled={loading}
-              className="flex items-center justify-center gap-2 px-6 py-3 bg-primary hover:bg-blue-800 text-white rounded font-bold shadow-lg transition-colors disabled:opacity-50 order-1 md:order-3"
+              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-md flex items-center justify-center gap-2 transition-transform hover:scale-105"
             >
-              {loading ? 'Salvando...' : 'Salvar e Sair'} <CheckCircle size={20} />
+              <Save size={16}/> {loading ? "Salvando..." : "Salvar e Adicionar Novo"}
             </button>
           </div>
 
         </form>
       </div>
-
-      {/* MODAL ÚLTIMOS LANÇAMENTOS */}
-      {modalUltimosAberto && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-          <div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-lg relative">
-            <button
-              onClick={() => setModalUltimosAberto(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-red-500"
-            >
-              <X size={24} />
-            </button>
-
-            <h3 className="text-2xl font-bold text-primary mb-6 flex items-center gap-2">
-              <History size={24} /> Últimos 5 Lançamentos
-            </h3>
-
-            <div className="space-y-3">
-              {ultimosLancamentos.map((l) => (
-                <div key={l.id} className="bg-gray-50 p-4 rounded-lg border border-gray-200 hover:bg-blue-50 transition-colors">
-                   <div className="flex justify-between items-start mb-2">
-                      <p className="font-bold text-gray-800 text-lg">{l.fornecedores?.nome || 'Sem Fornecedor'}</p>
-                      <span className={`px-2 py-1 rounded text-xs font-bold ${l.status === 'Pago' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                        {l.status}
-                      </span>
-                   </div>
-                   <div className="flex justify-between items-center text-sm">
-                      <p className="text-gray-500">{l.tipos_documento?.descricao} • {formatarData(l.data_vencimento)}</p>
-                      <p className="font-bold text-primary text-base">{formatarMoeda(l.valor)}</p>
-                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );
