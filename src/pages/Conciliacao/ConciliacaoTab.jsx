@@ -13,7 +13,9 @@ import {
   DollarSign, 
   CheckCircle2,
   FileSpreadsheet,
-  Sparkles 
+  Sparkles,
+  Layers,
+  AlertTriangle
 } from 'lucide-react';
 
 export default function ConciliacaoTab() {
@@ -31,6 +33,7 @@ export default function ConciliacaoTab() {
 
   // MODAL MANUAL
   const [itemEditando, setItemEditando] = useState(null);
+  const [naoSeAplicaTitulo, setNaoSeAplicaTitulo] = useState(false);
   const [formManual, setFormEditandoManual] = useState({
     tipo_operacao: 'Entrada',
     categoria_macro: '',
@@ -146,7 +149,7 @@ export default function ConciliacaoTab() {
     };
   }, [extrato]);
 
-  // AÇÃO 1: EXECUTAR CORRESPONDÊNCIA AUTOMÁTICA (APLICA REGRAS SALVAS DE CATEGORIZAÇÃO)
+  // AÇÃO 1: EXECUTAR CORRESPONDÊNCIA AUTOMÁTICA
   const handleExecutarCorrespondenciaAutomatica = async () => {
     setLoading(true);
     const { data: regras } = await supabase.from('regras_correspondencia').select('*');
@@ -180,7 +183,7 @@ export default function ConciliacaoTab() {
     carregarDadosConciliacao();
   };
 
-  // AÇÃO 2: EXECUTAR CONCILIAÇÃO AUTOMÁTICA (CRUZA COM PLANILHA DE TÍTULOS PAGOS)
+  // AÇÃO 2: EXECUTAR CONCILIAÇÃO AUTOMÁTICA (TÍTULOS PAGOS)
   const handleConciliacaoAutomatica = async () => {
     setLoading(true);
 
@@ -229,6 +232,66 @@ export default function ConciliacaoTab() {
     carregarDadosConciliacao();
   };
 
+  // AÇÃO 3: CONCILIAR EM MASSA (TRANSAÇÕES NÃO-FORNECEDOR JÁ CATEGORIZADAS)
+  const handleConciliarEmMassa = async () => {
+    setLoading(true);
+
+    // Busca transações não conciliadas que já possuem categoria e subcategoria e que NÃO sejam Títulos Pagos
+    const { data: pendentes } = await supabase
+      .from('extrato_transacoes')
+      .select('*')
+      .eq('conciliado', false)
+      .not('categoria_macro', 'is', null)
+      .not('subcategoria', 'is', null);
+
+    if (!pendentes || pendentes.length === 0) {
+      setLoading(false);
+      return alert("Nenhum lançamento categorizado pendente de conciliação foi encontrado.");
+    }
+
+    let conciliadosContador = 0;
+    let pendentesOrigemDestino = 0;
+
+    for (const item of pendentes) {
+      // Ignora Pagamento a Fornecedores / Títulos Pagos
+      if (item.categoria_macro?.includes("9. Pagamento a Fornecedores") || item.subcategoria?.includes("9.1 Títulos Pagos")) {
+        continue;
+      }
+
+      // Validação obrigatória para Transferências entre Mesma Titularidade
+      const isTransferenciaInterna = item.categoria_macro?.includes("3. Transferências e Movimentações Internas") && 
+                                    item.subcategoria?.includes("3.1 Transferência Mesma Titularidade");
+
+      if (isTransferenciaInterna && (!item.origem_destino || item.origem_destino.trim() === '' || item.origem_destino === 'Não Aplicável')) {
+        pendentesOrigemDestino++;
+        continue; // Pula este item até que o usuário informe a Origem/Destino
+      }
+
+      // Conclui conciliação em massa marcando Não se Aplica para dados de fornecedor
+      await supabase.from('extrato_transacoes').update({
+        conciliado: true,
+        tipo_conciliacao: 'Auto',
+        fornecedor_nome: null,
+        cnpj: null,
+        nota_fiscal: null,
+        parcela: null,
+        valor_original_titulo: 0,
+        valor_abatimento: 0,
+        valor_juros_multa: 0
+      }).eq('id', item.id);
+
+      conciliadosContador++;
+    }
+
+    let mensagem = `Conciliação em Massa concluída! ${conciliadosContador} lançamentos foram conciliados automaticamente.`;
+    if (pendentesOrigemDestino > 0) {
+      mensagem += `\n\nAtenção: ${pendentesOrigemDestino} lançamentos de Transferência Interna exigem o preenchimento obrigatório de Origem/Destino e não foram conciliados.`;
+    }
+
+    alert(mensagem);
+    carregarDadosConciliacao();
+  };
+
   const handleAtualizarValorOriginal = (valOrigStr) => {
     const valOrig = parseFloat(valOrigStr) || 0;
     const valPago = Number(itemEditando?.valor) || 0;
@@ -251,6 +314,11 @@ export default function ConciliacaoTab() {
 
   const handleAbrirModalManual = (item) => {
     setItemEditando(item);
+    const isFornecedor = item.categoria_macro?.includes("9. Pagamento a Fornecedores") || item.subcategoria?.includes("9.1 Títulos Pagos");
+    
+    // Se não for fornecedor, ativa por padrão o toggle "Não se aplica"
+    setNaoSeAplicaTitulo(!isFornecedor);
+
     setFormEditandoManual({
       tipo_operacao: item.tipo_operacao || 'Saída',
       categoria_macro: item.categoria_macro || '9. Pagamento a Fornecedores',
@@ -269,17 +337,49 @@ export default function ConciliacaoTab() {
 
   const handleSalvarCategorizacaoManual = async (e) => {
     e.preventDefault();
-    const { error } = await supabase.from('extrato_transacoes').update({
-      ...formManual,
-      valor_nota_fiscal: parseFloat(formManual.valor_nota_fiscal) || 0,
-      valor_original_titulo: parseFloat(formManual.valor_original_titulo) || 0,
+
+    // Validação de Origem/Destino obrigatória para Transferências de Mesma Titularidade
+    const isTransfInterna = formManual.categoria_macro?.includes("3. Transferências e Movimentações Internas") && 
+                             formManual.subcategoria?.includes("3.1 Transferência Mesma Titularidade");
+
+    if (isTransfInterna && (!formManual.origem_destino || formManual.origem_destino === '' || formManual.origem_destino === 'Não Aplicável')) {
+      return alert("Para Transferências de Mesma Titularidade (PJ para PJ), é obrigatório selecionar a Origem / Destino.");
+    }
+
+    const payloadAtualizacao = {
+      tipo_operacao: formManual.tipo_operacao,
+      categoria_macro: formManual.categoria_macro,
+      subcategoria: formManual.subcategoria,
+      origem_destino: formManual.origem_destino,
       conciliado: true,
       tipo_conciliacao: 'Manual'
-    }).eq('id', itemEditando.id);
+    };
+
+    if (naoSeAplicaTitulo) {
+      payloadAtualizacao.fornecedor_nome = null;
+      payloadAtualizacao.cnpj = null;
+      payloadAtualizacao.nota_fiscal = null;
+      payloadAtualizacao.valor_nota_fiscal = 0;
+      payloadAtualizacao.parcela = null;
+      payloadAtualizacao.valor_original_titulo = 0;
+      payloadAtualizacao.valor_abatimento = 0;
+      payloadAtualizacao.valor_juros_multa = 0;
+    } else {
+      payloadAtualizacao.fornecedor_nome = formManual.fornecedor_nome;
+      payloadAtualizacao.cnpj = formManual.cnpj;
+      payloadAtualizacao.nota_fiscal = formManual.nota_fiscal;
+      payloadAtualizacao.valor_nota_fiscal = parseFloat(formManual.valor_nota_fiscal) || 0;
+      payloadAtualizacao.parcela = formManual.parcela;
+      payloadAtualizacao.valor_original_titulo = parseFloat(formManual.valor_original_titulo) || 0;
+      payloadAtualizacao.valor_abatimento = formManual.valor_abatimento;
+      payloadAtualizacao.valor_juros_multa = formManual.valor_juros_multa;
+    }
+
+    const { error } = await supabase.from('extrato_transacoes').update(payloadAtualizacao).eq('id', itemEditando.id);
 
     if (error) alert("Erro ao conciliar: " + error.message);
     else {
-      alert("Transação conciliada e detalhada com sucesso!");
+      alert("Transação conciliada com sucesso!");
       setItemEditando(null);
       carregarDadosConciliacao();
     }
@@ -300,32 +400,41 @@ export default function ConciliacaoTab() {
   return (
     <div className="space-y-6">
       
-      {/* BARRA SUPERIOR DE AUTOMATIZAÇÕES (2 BOTÕES) */}
+      {/* BARRA SUPERIOR DE AUTOMATIZAÇÕES (3 BOTÕES) */}
       <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
         <div>
           <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
             <Zap className="text-amber-500" size={22}/> Ações de Automação Bancária
           </h3>
-          <p className="text-xs text-gray-500">Execute as regras salvas de correspondência ou faça o cruzamento com Títulos Pagos.</p>
+          <p className="text-xs text-gray-500">Execute regras de correspondência, conciliação por títulos ou conciliação em massa.</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row gap-2.5 w-full md:w-auto">
           {/* BOTÃO 1: EXECUTAR CORRESPONDÊNCIA */}
           <button
             onClick={handleExecutarCorrespondenciaAutomatica}
             disabled={loading}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-5 rounded-lg shadow flex items-center justify-center gap-2 text-xs transition-transform hover:scale-105"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-lg shadow flex items-center justify-center gap-1.5 text-xs transition-transform hover:scale-105"
           >
-            <Sparkles size={16} /> Executar Correspondência Automática
+            <Sparkles size={16} /> Correspondência Automática
           </button>
 
-          {/* BOTÃO 2: EXECUTAR CONCILIAÇÃO (TÍTULOS PAGOS) */}
+          {/* BOTÃO 2: CONCILIAR EM MASSA */}
+          <button
+            onClick={handleConciliarEmMassa}
+            disabled={loading}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-4 rounded-lg shadow flex items-center justify-center gap-1.5 text-xs transition-transform hover:scale-105"
+          >
+            <Layers size={16} /> Conciliar em Massa
+          </button>
+
+          {/* BOTÃO 3: EXECUTAR CONCILIAÇÃO (TÍTULOS PAGOS) */}
           <button
             onClick={handleConciliacaoAutomatica}
             disabled={loading}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-5 rounded-lg shadow flex items-center justify-center gap-2 text-xs transition-transform hover:scale-105"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-lg shadow flex items-center justify-center gap-1.5 text-xs transition-transform hover:scale-105"
           >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Executar Conciliação Automática
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Conciliação Automática
           </button>
         </div>
       </div>
@@ -492,7 +601,7 @@ export default function ConciliacaoTab() {
         )}
       </div>
 
-      {/* MODAL MANUAL */}
+      {/* MODAL MANUAL COM TOGGLE "NÃO SE APLICA" */}
       {itemEditando && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl border">
@@ -531,43 +640,60 @@ export default function ConciliacaoTab() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block font-bold text-gray-700 mb-1">Origem / Destino (Transferências PJ/PJ)</label>
-                  <select value={formManual.origem_destino} onChange={e=>setFormEditandoManual({...formManual, origem_destino: e.target.value})} className="w-full p-2 border rounded bg-white">
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Origem / Destino (Transferências PJ/PJ) {formManual.categoria_macro?.includes("3. Transferências") && <span className="text-red-500">*</span>}
+                  </label>
+                  <select value={formManual.origem_destino} onChange={e=>setFormEditandoManual({...formManual, origem_destino: e.target.value})} className="w-full p-2 border rounded bg-white font-semibold">
                     <option value="">Não Aplicável</option>
                     {origensDestinos.map(od => <option key={od} value={od}>{od}</option>)}
                   </select>
                 </div>
               </div>
 
+              {/* SEÇÃO DE DADOS DO FORNECEDOR COM TOGGLE "NÃO SE APLICA" */}
               <div className="border-t pt-3 space-y-3">
-                <h4 className="font-bold text-gray-800 text-xs uppercase text-indigo-950">
-                  Dados do Fornecedor & Título Financeiro
-                </h4>
+                <div className="flex justify-between items-center">
+                  <h4 className="font-bold text-gray-800 text-xs uppercase text-indigo-950">
+                    Dados do Fornecedor & Título Financeiro
+                  </h4>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {/* TOGGLE NÃO SE APLICA */}
+                  <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-gray-700 select-none">
+                    <span>Não se aplica</span>
+                    <input 
+                      type="checkbox" 
+                      checked={naoSeAplicaTitulo} 
+                      onChange={e => setNaoSeAplicaTitulo(e.target.checked)} 
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600 relative"></div>
+                  </label>
+                </div>
+
+                <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 transition-opacity ${naoSeAplicaTitulo ? 'opacity-40 pointer-events-none' : ''}`}>
                   <div>
                     <label className="block font-semibold mb-1">Fornecedor (Razão Social)</label>
-                    <input type="text" value={formManual.fornecedor_nome} onChange={e=>setFormEditandoManual({...formManual, fornecedor_nome: e.target.value})} className="w-full p-2 border rounded bg-white" placeholder="Razão Social" />
+                    <input type="text" disabled={naoSeAplicaTitulo} value={formManual.fornecedor_nome} onChange={e=>setFormEditandoManual({...formManual, fornecedor_nome: e.target.value})} className="w-full p-2 border rounded bg-white" placeholder="Razão Social" />
                   </div>
 
                   <div>
                     <label className="block font-semibold mb-1">CNPJ</label>
-                    <input type="text" value={formManual.cnpj} onChange={e=>setFormEditandoManual({...formManual, cnpj: e.target.value})} className="w-full p-2 border rounded bg-white" placeholder="00.000.000/0001-00" />
+                    <input type="text" disabled={naoSeAplicaTitulo} value={formManual.cnpj} onChange={e=>setFormEditandoManual({...formManual, cnpj: e.target.value})} className="w-full p-2 border rounded bg-white" placeholder="00.000.000/0001-00" />
                   </div>
 
                   <div>
                     <label className="block font-semibold mb-1">Nota Fiscal</label>
-                    <input type="text" value={formManual.nota_fiscal} onChange={e=>setFormEditandoManual({...formManual, nota_fiscal: e.target.value})} className="w-full p-2 border rounded bg-white" />
+                    <input type="text" disabled={naoSeAplicaTitulo} value={formManual.nota_fiscal} onChange={e=>setFormEditandoManual({...formManual, nota_fiscal: e.target.value})} className="w-full p-2 border rounded bg-white" />
                   </div>
 
                   <div>
                     <label className="block font-semibold mb-1">Valor Nota Fiscal (R$)</label>
-                    <input type="number" step="0.01" value={formManual.valor_nota_fiscal} onChange={e=>setFormEditandoManual({...formManual, valor_nota_fiscal: e.target.value})} className="w-full p-2 border rounded bg-white" />
+                    <input type="number" step="0.01" disabled={naoSeAplicaTitulo} value={formManual.valor_nota_fiscal} onChange={e=>setFormEditandoManual({...formManual, valor_nota_fiscal: e.target.value})} className="w-full p-2 border rounded bg-white" />
                   </div>
 
                   <div>
                     <label className="block font-semibold mb-1">Parcela</label>
-                    <input type="text" value={formManual.parcela} onChange={e=>setFormEditandoManual({...formManual, parcela: e.target.value})} className="w-full p-2 border rounded bg-white" placeholder="1/3" />
+                    <input type="text" disabled={naoSeAplicaTitulo} value={formManual.parcela} onChange={e=>setFormEditandoManual({...formManual, parcela: e.target.value})} className="w-full p-2 border rounded bg-white" placeholder="1/3" />
                   </div>
 
                   <div>
@@ -575,6 +701,7 @@ export default function ConciliacaoTab() {
                     <input 
                       type="number" 
                       step="0.01" 
+                      disabled={naoSeAplicaTitulo}
                       value={formManual.valor_original_titulo} 
                       onChange={e => handleAtualizarValorOriginal(e.target.value)} 
                       className="w-full p-2 border rounded bg-white font-bold text-gray-800" 
@@ -582,16 +709,18 @@ export default function ConciliacaoTab() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 bg-indigo-50/60 p-3 rounded-lg border border-indigo-100">
-                  <div>
-                    <span className="block font-bold text-emerald-800 text-[11px] uppercase">Abatimento / Desconto</span>
-                    <span className="text-sm font-extrabold text-emerald-700">{formatarMoeda(formManual.valor_abatimento)}</span>
+                {!naoSeAplicaTitulo && (
+                  <div className="grid grid-cols-2 gap-3 bg-indigo-50/60 p-3 rounded-lg border border-indigo-100">
+                    <div>
+                      <span className="block font-bold text-emerald-800 text-[11px] uppercase">Abatimento / Desconto</span>
+                      <span className="text-sm font-extrabold text-emerald-700">{formatarMoeda(formManual.valor_abatimento)}</span>
+                    </div>
+                    <div>
+                      <span className="block font-bold text-red-800 text-[11px] uppercase">Juros / Multa</span>
+                      <span className="text-sm font-extrabold text-red-700">{formatarMoeda(formManual.valor_juros_multa)}</span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="block font-bold text-red-800 text-[11px] uppercase">Juros / Multa</span>
-                    <span className="text-sm font-extrabold text-red-700">{formatarMoeda(formManual.valor_juros_multa)}</span>
-                  </div>
-                </div>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-4 border-t">
