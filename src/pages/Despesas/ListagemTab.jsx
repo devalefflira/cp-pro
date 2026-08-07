@@ -531,6 +531,7 @@ export default function ListagemTab() {
                     onChange={e => setFormEdicao({...formEdicao, forma_pagamento: e.target.value})}
                   >
                     <option value="">Selecione...</option>
+                    <option value="Cartão">Boleto</option>
                     <option value="Cartão">Cartão</option>
                     <option value="Cheque">Cheque</option>
                     <option value="Dinheiro">Dinheiro</option>
