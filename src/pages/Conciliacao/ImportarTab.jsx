@@ -1,12 +1,20 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabase';
-import { Upload, FileCode, FileSpreadsheet, History, Trash2 } from 'lucide-react';
+import { Upload, FileCode, FileSpreadsheet, History, Trash2, CheckCircle } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { 
+  parseOFXSicoob, 
+  parseOFXSantander, 
+  parseOFXBradesco, 
+  parseOFXTribanco 
+} from '../../services/ofxParsers';
 
 export default function ImportarTab() {
-  const [tipoImportacao, setTipoArquivo] = useState('OFX');
+  const [tipoImportacao, setTipoImportacao] = useState('OFX');
   const [bancoSelecionado, setBanco] = useState('Bradesco');
   const [loading, setLoading] = useState(false);
   const [historico, setHistorico] = useState([]);
+  const [mensagemSucesso, setMensagemSucesso] = useState('');
 
   useEffect(() => {
     carregarHistorico();
@@ -20,98 +28,39 @@ export default function ImportarTab() {
     setHistorico(data || []);
   };
 
-  // PARSER OFX MULTI-BANCO (SICOOB, TRIBANCO, SANTANDER, BRADESCO)
-  const parseOFX = (text) => {
-    const transacoes = [];
-    
-    // Normaliza quebras de linha
-    const cleanText = text.replace(/\r/g, '');
-    
-    // Divide por bloco STMTTRN (funciona tanto para OFX com quanto sem fechamento </STMTTRN>)
-    const blocks = cleanText.split(/<STMTTRN>/i).slice(1);
-
-    blocks.forEach(block => {
-      // Trata blocos em caso de OFX SGML antigo sem fechamento
-      const content = block.split(/<\/STMTTRN>/i)[0];
-
-      const trnType = (content.match(/<TRNTYPE>(.*)/i) || [])[1]?.trim();
-      const dtPosted = (content.match(/<DTPOSTED>(.*)/i) || [])[1]?.trim();
-      const trnAmtRaw = (content.match(/<TRNAMT>(.*)/i) || [])[1]?.trim();
-      const fitId = (content.match(/<FITID>(.*)/i) || [])[1]?.trim();
-      
-      const memo = (content.match(/<MEMO>(.*)/i) || [])[1]?.trim() || 
-                   (content.match(/<NAME>(.*)/i) || [])[1]?.trim() || 
-                   'Transação OFX';
-
-      if (dtPosted && trnAmtRaw) {
-        const ano = dtPosted.substring(0, 4);
-        const mes = dtPosted.substring(4, 6);
-        const dia = dtPosted.substring(6, 8);
-
-        // PARSER INTELIGENTE DE MOEDA
-        let valStr = trnAmtRaw.trim();
-        let val = 0;
-
-        // Caso 1: Formato BR com vírgula decimal (ex: -3565,27)
-        if (valStr.includes(',')) {
-          valStr = valStr.replace(/\./g, '').replace(',', '.');
-          val = parseFloat(valStr);
-        } else {
-          // Caso 2: Formato Padrão ISO/OFX com ponto decimal (ex: -5199.62 ou -4410.00)
-          val = parseFloat(valStr);
-        }
-
-        if (!isNaN(val)) {
-          transacoes.push({
-            fitid: fitId || `OFX-${Date.now()}-${Math.random()}`,
-            data_transacao: `${ano}-${mes}-${dia}`,
-            valor: Math.abs(val),
-            tipo_operacao: val < 0 ? 'Saída' : (val > 0 ? 'Entrada' : 'Sem Operação/Neutro'),
-            descricao: memo,
-            memo: memo
-          });
-        }
-      }
-    });
-
-    return transacoes;
-  };
-
-  const formatarDataIso = (strData) => {
-    if (!strData) return null;
-    const limpa = strData.trim();
-    if (limpa.includes('/')) {
-      const [d, m, y] = limpa.split('/');
+  // Helper para conversão de datas (trata Date do JS, ISO "YYYY-MM-DD" ou "DD/MM/YYYY")
+  const formatarDataIso = (val) => {
+    if (!val) return null;
+    if (val instanceof Date) {
+      return val.toISOString().split('T')[0];
+    }
+    const str = String(val).trim();
+    if (str.includes('/')) {
+      const [d, m, y] = str.split('/');
       return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
     }
-    return limpa;
+    if (str.includes('T')) return str.split('T')[0];
+    if (str.includes(' ')) return str.split(' ')[0];
+    return str;
   };
 
-  const parseMoedaBR = (valStr) => {
-    if (!valStr) return 0;
-    let s = valStr.toString().trim();
-    s = s.replace(/\./g, '').replace(',', '.');
+  // Helper para conversão de valores monetários
+  const parseMoeda = (val) => {
+    if (val === null || val === undefined) return 0;
+    if (typeof val === 'number') return val;
+    let s = String(val).trim().replace(/\./g, '').replace(',', '.');
     return parseFloat(s) || 0;
   };
 
-  const splitCSVLine = (line, separator) => {
-    const result = [];
-    let start = 0;
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      if (line[i] === '"') inQuotes = !inQuotes;
-      else if (line[i] === separator && !inQuotes) {
-        let field = line.substring(start, i).trim();
-        if (field.startsWith('"') && field.endsWith('"')) field = field.substring(1, field.length - 1);
-        result.push(field);
-        start = i + 1;
-      }
-    }
-    let lastField = line.substring(start).trim();
-    if (lastField.startsWith('"') && lastField.endsWith('"')) lastField = lastField.substring(1, lastField.length - 1);
-    result.push(lastField);
-    return result;
+  // Normaliza o nome do banco vindo da coluna "Banco" da planilha
+  const normalizarBanco = (bancoRaw) => {
+    if (!bancoRaw) return 'Outros';
+    const b = String(bancoRaw).trim().toLowerCase();
+    if (b.includes('sicoob')) return 'Sicoob';
+    if (b.includes('bradesco')) return 'Bradesco';
+    if (b.includes('santander')) return 'Santander';
+    if (b.includes('tribanco') || b.includes('triangulo')) return 'Tribanco';
+    return String(bancoRaw).trim();
   };
 
   const handleFileUpload = async (e) => {
@@ -121,13 +70,19 @@ export default function ImportarTab() {
     setLoading(true);
 
     try {
-      const text = await file.text();
       const hoje = new Date();
       const mesAnoFormatado = `${String(hoje.getMonth() + 1).padStart(2, '0')}/${hoje.getFullYear()}`;
 
       if (tipoImportacao === 'OFX') {
-        const transacoes = parseOFX(text);
-        if (transacoes.length === 0) {
+        const text = await file.text();
+        let transacoesParsed = [];
+
+        if (bancoSelecionado === 'Sicoob') transacoesParsed = parseOFXSicoob(text);
+        else if (bancoSelecionado === 'Santander') transacoesParsed = parseOFXSantander(text);
+        else if (bancoSelecionado === 'Bradesco') transacoesParsed = parseOFXBradesco(text);
+        else if (bancoSelecionado === 'Tribanco') transacoesParsed = parseOFXTribanco(text);
+
+        if (transacoesParsed.length === 0) {
           alert("Nenhuma transação válida encontrada no arquivo OFX.");
           setLoading(false);
           return;
@@ -139,7 +94,7 @@ export default function ImportarTab() {
             tipo_arquivo: 'OFX',
             banco: bancoSelecionado,
             periodo_importado: mesAnoFormatado,
-            quantidade_registros: transacoes.length,
+            quantidade_registros: transacoesParsed.length,
             nome_arquivo: file.name
           }])
           .select()
@@ -147,7 +102,7 @@ export default function ImportarTab() {
 
         if (errHist) throw errHist;
 
-        const payloadTrans = transacoes.map(t => ({
+        const payloadTrans = transacoesParsed.map(t => ({
           ...t,
           importacao_id: imp.id,
           banco: bancoSelecionado
@@ -156,44 +111,65 @@ export default function ImportarTab() {
         const { error: errTrans } = await supabase.from('extrato_transacoes').insert(payloadTrans);
         if (errTrans) throw errTrans;
 
-        alert(`Arquivo OFX do banco ${bancoSelecionado} importado com sucesso! ${transacoes.length} transações salvas.`);
+        setMensagemSucesso(`Arquivo OFX do banco ${bancoSelecionado} importado com sucesso! ${transacoesParsed.length} transações salvas.`);
 
       } else {
-        const linhas = text.split(/\r?\n/).filter(l => l.trim() !== '');
-        if (linhas.length <= 1) {
-          alert("O arquivo selecionado está vazio ou contém apenas o cabeçalho.");
+        // --- PROCESSAMENTO MULTI-BANCO DE PLANILHA DE TÍTULOS PAGOS (.XLSX / .CSV) ---
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { cellDates: true });
+
+        // Procura a aba 'import' ou pega a primeira aba da planilha
+        const sheetName = workbook.SheetNames.find(s => s.toLowerCase() === 'import') || workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        
+        const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+        if (rows.length === 0) {
+          alert("A planilha selecionada está vazia.");
           setLoading(false);
           return;
         }
 
-        const cabecalho = linhas[0];
-        let separador = ',';
-        if (cabecalho.includes('\t')) separador = '\t';
-        else if (cabecalho.includes(';')) separador = ';';
-
         const payloadTitulos = [];
 
-        for (let i = 1; i < linhas.length; i++) {
-          const col = splitCSVLine(linhas[i], separador);
-          if (col.length >= 6) {
-            const nomeBanco = col[9] ? col[9].trim() : bancoSelecionado;
+        rows.forEach(r => {
+          const findVal = (keys) => {
+            const foundKey = Object.keys(r).find(k => 
+              keys.includes(k.toLowerCase().replace(/[^a-z0-9]/g, ''))
+            );
+            return foundKey ? r[foundKey] : '';
+          };
+
+          const notaFiscal = findVal(['notafiscal', 'numnota', 'nf']);
+          const parcela = findVal(['parcela', 'pr']) || '1';
+          const dtVenc = formatarDataIso(findVal(['datavencimento', 'dtvencto', 'vencimento']));
+          const fornecedor = findVal(['fornecedor', 'razaosocial']) || 'Fornecedor Não Informado';
+          const cnpj = findVal(['cnpj', 'cpfcnpj']);
+          const dtPago = formatarDataIso(findVal(['datapagamento', 'dtpago', 'datapago', 'pagamento']));
+          const vDesc = parseMoeda(findVal(['valordesconto', 'vldesc']));
+          const vJuros = parseMoeda(findVal(['valorjuros', 'vljuro']));
+          const vPago = parseMoeda(findVal(['valorpago', 'vlpago', 'valor']));
+          const bancoRaw = findVal(['banco', 'nomecxbco', 'bancoorigem']);
+
+          if (fornecedor && vPago > 0) {
             payloadTitulos.push({
-              nota_fiscal: col[0] || null,
-              parcela: col[1] || null,
-              data_vencimento: formatarDataIso(col[2]),
-              fornecedor: col[3] || 'Fornecedor Não Informado',
-              cnpj: col[4] || null,
-              data_pagamento: formatarDataIso(col[5]),
-              valor_desconto: parseMoedaBR(col[6]),
-              valor_juros: parseMoedaBR(col[7]),
-              valor_pago: parseMoedaBR(col[8]),
-              banco: nomeBanco
+              nota_fiscal: String(notaFiscal).trim() || null,
+              parcela: String(parcela).trim() || '1',
+              data_vencimento: dtVenc,
+              fornecedor: String(fornecedor).trim(),
+              cnpj: String(cnpj).trim() || null,
+              data_pagamento: dtPago,
+              valor_desconto: vDesc,
+              valor_juros: vJuros,
+              valor_pago: vPago,
+              banco: normalizarBanco(bancoRaw),
+              conciliado: false
             });
           }
-        }
+        });
 
         if (payloadTitulos.length === 0) {
-          alert("Nenhum registro válido foi encontrado no CSV.");
+          alert("Nenhum registro válido foi encontrado na planilha.");
           setLoading(false);
           return;
         }
@@ -202,6 +178,7 @@ export default function ImportarTab() {
           .from('importacoes_historico')
           .insert([{
             tipo_arquivo: 'Títulos Pagos',
+            banco: 'Multi-Banco',
             periodo_importado: mesAnoFormatado,
             quantidade_registros: payloadTitulos.length,
             nome_arquivo: file.name
@@ -219,7 +196,7 @@ export default function ImportarTab() {
         const { error: errTit } = await supabase.from('titulos_pagos_importados').insert(payloadFinal);
         if (errTit) throw errTit;
 
-        alert(`Títulos Pagos importados com sucesso! ${payloadTitulos.length} registros inseridos.`);
+        setMensagemSucesso(`Planilha de Títulos Pagos importada com sucesso! ${payloadTitulos.length} títulos distribuídos entre os bancos.`);
       }
 
       carregarHistorico();
@@ -227,13 +204,13 @@ export default function ImportarTab() {
       alert("Erro na importação: " + err.message);
     } finally {
       setLoading(false);
+      setTimeout(() => setMensagemSucesso(''), 5000);
       e.target.value = null;
     }
   };
 
-  // DELETAR IMPORTAÇÃO E SEUS LANÇAMENTOS ASSOCIADOS
   const handleExcluirImportacao = async (imp) => {
-    if (!confirm(`Deseja excluir a importação "${imp.nome_arquivo || imp.tipo_arquivo}" e remover TODOS os seus lançamentos vinculados das abas do sistema?`)) {
+    if (!confirm(`Deseja excluir a importação "${imp.nome_arquivo || imp.tipo_arquivo}" e remover TODOS os seus lançamentos vinculados?`)) {
       return;
     }
 
@@ -249,7 +226,8 @@ export default function ImportarTab() {
       const { error } = await supabase.from('importacoes_historico').delete().eq('id', imp.id);
       if (error) throw error;
 
-      alert("Importação e lançamentos removidos com sucesso!");
+      setMensagemSucesso("Importação e lançamentos removidos com sucesso!");
+      setTimeout(() => setMensagemSucesso(''), 4000);
       carregarHistorico();
     } catch (err) {
       alert("Erro ao excluir importação: " + err.message);
@@ -261,7 +239,13 @@ export default function ImportarTab() {
   return (
     <div className="space-y-6">
       
-      {/* SELEÇÃO DO TIPO DE IMPORTAÇÃO */}
+      {mensagemSucesso && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm">
+          <CheckCircle size={18} className="text-emerald-600"/> {mensagemSucesso}
+        </div>
+      )}
+
+      {/* ÁREA DE NOVA IMPORTAÇÃO */}
       <div className="bg-white p-6 rounded-xl border shadow-sm space-y-4">
         <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
           <Upload className="text-primary" size={20} /> Nova Importação de Arquivo
@@ -272,8 +256,8 @@ export default function ImportarTab() {
             <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Tipo de Importação</label>
             <select
               value={tipoImportacao}
-              onChange={e => setTipoArquivo(e.target.value)}
-              className="w-full p-2.5 border rounded-lg bg-gray-50 text-sm font-semibold outline-none"
+              onChange={e => setTipoImportacao(e.target.value)}
+              className="w-full p-2.5 border rounded-lg bg-gray-50 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/20"
             >
               <option value="OFX">Extrato OFX (Money 2000+)</option>
               <option value="TITULOS">Títulos Pagos (Planilha/CSV)</option>
@@ -286,7 +270,7 @@ export default function ImportarTab() {
               <select
                 value={bancoSelecionado}
                 onChange={e => setBanco(e.target.value)}
-                className="w-full p-2.5 border rounded-lg bg-gray-50 text-sm font-semibold outline-none"
+                className="w-full p-2.5 border rounded-lg bg-gray-50 text-sm font-semibold outline-none focus:ring-2 focus:ring-primary/20"
               >
                 <option value="Bradesco">Bradesco</option>
                 <option value="Santander">Santander</option>
@@ -296,17 +280,23 @@ export default function ImportarTab() {
             </div>
           )}
 
-          <div className="flex items-end">
-            <label className="w-full bg-primary hover:bg-blue-900 text-white font-bold py-2.5 px-4 rounded-lg cursor-pointer text-center text-sm shadow flex items-center justify-center gap-2 transition-transform hover:scale-105">
+          <div className={`flex items-end ${tipoImportacao === 'TITULOS' ? 'md:col-span-2' : ''}`}>
+            <label className="w-full bg-primary hover:bg-blue-900 text-white font-bold py-2.5 px-4 rounded-lg cursor-pointer text-center text-sm shadow flex items-center justify-center gap-2 transition-transform hover:scale-[1.01]">
               {tipoImportacao === 'OFX' ? <FileCode size={18}/> : <FileSpreadsheet size={18}/>}
               {loading ? "Processando..." : "Selecionar Arquivo"}
-              <input type="file" accept={tipoImportacao === 'OFX' ? '.ofx,.txt' : '.csv,.txt'} onChange={handleFileUpload} disabled={loading} className="hidden" />
+              <input 
+                type="file" 
+                accept={tipoImportacao === 'OFX' ? '.ofx,.txt' : '.xlsx,.xls,.csv,.txt'} 
+                onChange={handleFileUpload} 
+                disabled={loading} 
+                className="hidden" 
+              />
             </label>
           </div>
         </div>
       </div>
 
-      {/* HISTÓRICO DE IMPORTAÇÃO COM BOTAO DE EXCLUSÃO */}
+      {/* HISTÓRICO DE IMPORTAÇÕES */}
       <div className="bg-white p-6 rounded-xl border shadow-sm space-y-4">
         <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
           <History className="text-secondary" size={20} /> Histórico de Registros de Importação
@@ -326,29 +316,33 @@ export default function ImportarTab() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {historico.map((h) => (
-                <tr key={h.id} className="hover:bg-gray-50">
-                  <td className="p-3 font-medium">{new Date(h.data_importacao).toLocaleString('pt-BR')}</td>
-                  <td className="p-3">
-                    <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${h.tipo_arquivo === 'OFX' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
-                      {h.tipo_arquivo}
-                    </span>
-                  </td>
-                  <td className="p-3 font-semibold">{h.banco || '-'}</td>
-                  <td className="p-3">{h.periodo_importado}</td>
-                  <td className="p-3 font-bold">{h.quantidade_registros}</td>
-                  <td className="p-3 text-gray-500 truncate max-w-xs">{h.nome_arquivo || '-'}</td>
-                  <td className="p-3 text-center">
-                    <button
-                      onClick={() => handleExcluirImportacao(h)}
-                      title="Excluir arquivo e lançamentos"
-                      className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {historico.length === 0 ? (
+                <tr><td colSpan="7" className="p-6 text-center text-gray-400 italic">Nenhum arquivo importado até o momento.</td></tr>
+              ) : (
+                historico.map((h) => (
+                  <tr key={h.id} className="hover:bg-gray-50">
+                    <td className="p-3 font-medium">{new Date(h.data_importacao).toLocaleString('pt-BR')}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${h.tipo_arquivo === 'OFX' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                        {h.tipo_arquivo}
+                      </span>
+                    </td>
+                    <td className="p-3 font-semibold">{h.banco || '-'}</td>
+                    <td className="p-3">{h.periodo_importado}</td>
+                    <td className="p-3 font-bold">{h.quantidade_registros}</td>
+                    <td className="p-3 text-gray-500 truncate max-w-xs">{h.nome_arquivo || '-'}</td>
+                    <td className="p-3 text-center">
+                      <button
+                        onClick={() => handleExcluirImportacao(h)}
+                        title="Excluir arquivo e lançamentos"
+                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
