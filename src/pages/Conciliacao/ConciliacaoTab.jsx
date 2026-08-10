@@ -136,37 +136,63 @@ export default function ConciliacaoTab() {
   };
 
   const resumoDashboard = useMemo(() => {
-    let entradas = 0, saidas = 0, conciliadosCount = 0;
+    let entradas = 0;
+    let saidas = 0;
+    let conciliadosCount = 0;
+
     extrato.forEach(t => {
       const val = Number(t.valor) || 0;
-      if (t.tipo_operacao === 'Entrada') entradas += val;
-      else if (t.tipo_operacao === 'Saída') saidas += val;
+      // Critério unificado: valores negativos são saídas, positivos são entradas
+      if (val < 0 || t.tipo_operacao === 'Saída') {
+        saidas += Math.abs(val);
+      } else if (val > 0 || t.tipo_operacao === 'Entrada') {
+        entradas += val;
+      }
+
       if (t.conciliado) conciliadosCount++;
     });
+
     return {
-      entradas, saidas, saldo: entradas - saidas, totalRegistros: extrato.length,
-      conciliadosCount, percConciliado: extrato.length > 0 ? ((conciliadosCount / extrato.length) * 100).toFixed(1) : 0
+      entradas, 
+      saidas, 
+      saldo: entradas - saidas, 
+      totalRegistros: extrato.length,
+      conciliadosCount, 
+      percConciliado: extrato.length > 0 ? ((conciliadosCount / extrato.length) * 100).toFixed(1) : 0
     };
   }, [extrato]);
 
   // AÇÃO 1: EXECUTAR CORRESPONDÊNCIA AUTOMÁTICA
   const handleExecutarCorrespondenciaAutomatica = async () => {
     setLoading(true);
-    const { data: regras } = await supabase.from('regras_correspondencia').select('*');
+    const { data: regras, error: errRegras } = await supabase.from('regras_correspondencia').select('*');
     
-    if (!regras || regras.length === 0) {
+    if (errRegras || !regras || regras.length === 0) {
       setLoading(false);
       return alert("Nenhuma regra cadastrada na aba Correspondências. Cadastre ao menos um padrão antes.");
     }
 
-    const { data: pendentes } = await supabase.from('extrato_transacoes').select('*');
+    // Busca transações não conciliadas e não categorizadas do extrato
+    let queryExtrato = supabase.from('extrato_transacoes').select('*').eq('conciliado', false);
+    if (bancoFiltro !== 'TODOS') {
+      queryExtrato = queryExtrato.eq('banco', bancoFiltro);
+    }
+
+    const { data: pendentes } = await queryExtrato;
     let categorizadosCount = 0;
 
     if (pendentes && pendentes.length > 0) {
       for (const ext of pendentes) {
-        const regraMatch = regras.find(r => 
-          ext.descricao.toUpperCase().includes(r.padrao_descricao.toUpperCase())
-        );
+        const textoExtrato = (ext.descricao + ' ' + (ext.memo || '')).toUpperCase();
+
+        // Procura regra correspondente (prioriza regra do mesmo banco ou regra 'Geral')
+        const regraMatch = regras.find(r => {
+          const padrao = (r.padrao_descricao || '').toUpperCase();
+          const bancoRegra = (r.banco || '').toUpperCase();
+          const matchTexto = textoExtrato.includes(padrao);
+          const matchBanco = bancoRegra === 'GERAL' || bancoRegra === ext.banco.toUpperCase();
+          return matchTexto && matchBanco;
+        });
 
         if (regraMatch) {
           categorizadosCount++;
@@ -179,7 +205,8 @@ export default function ConciliacaoTab() {
       }
     }
 
-    alert(`Correspondência concluída! ${categorizadosCount} lançamentos do extrato foram categorizados.`);
+    setLoading(false);
+    alert(`Correspondência concluída! ${categorizadosCount} lançamentos do extrato foram categorizados automaticamente.`);
     carregarDadosConciliacao();
   };
 
