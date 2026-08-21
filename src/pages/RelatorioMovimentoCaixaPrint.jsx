@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabase';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Printer, FileDown, ArrowLeft } from 'lucide-react';
+import { Printer, FileDown, ArrowLeft, CreditCard } from 'lucide-react';
 
 export default function RelatorioMovimentoCaixaPrint() {
   const [searchParams] = useSearchParams();
@@ -27,7 +27,7 @@ export default function RelatorioMovimentoCaixaPrint() {
     if (inicio) query = query.gte('data_operacao', inicio);
     if (fim) query = query.lte('data_operacao', fim);
 
-    // Aplica o filtro de itens selecionados na página de impressão
+    // Filtro de itens selecionados
     if (itensParam) {
       const itensArray = itensParam.split(',');
       if (itensArray.length > 0) {
@@ -45,9 +45,34 @@ export default function RelatorioMovimentoCaixaPrint() {
   const formatarMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   const formatarData = (d) => d ? d.split('-').reverse().join('/') : '';
 
-  const totalEntradas = dados.filter(d => d.tipo_operacao?.includes('Entrada')).reduce((acc, curr) => acc + Number(curr.valor || 0), 0);
-  const totalSaidas = dados.filter(d => d.tipo_operacao?.includes('Saída')).reduce((acc, curr) => acc + Number(curr.valor || 0), 0);
-  const saldo = totalEntradas - totalSaidas;
+  // Total Geral
+  const totalEntradas = useMemo(() => dados.filter(d => d.tipo_operacao?.includes('Entrada')).reduce((acc, curr) => acc + Number(curr.valor || 0), 0), [dados]);
+  const totalSaidas = useMemo(() => dados.filter(d => d.tipo_operacao?.includes('Saída')).reduce((acc, curr) => acc + Number(curr.valor || 0), 0), [dados]);
+  const saldoGeral = totalEntradas - totalSaidas;
+
+  // Totalizadores agrupados por Forma de Pagamento
+  const totaisPorForma = useMemo(() => {
+    const agrupamento = {};
+    dados.forEach(d => {
+      const forma = d.forma_pagamento || 'Não Informado';
+      const valor = Number(d.valor || 0);
+      const isEntrada = d.tipo_operacao?.includes('Entrada');
+
+      if (!agrupamento[forma]) {
+        agrupamento[forma] = { entradas: 0, saidas: 0, saldo: 0, totalItens: 0 };
+      }
+
+      if (isEntrada) {
+        agrupamento[forma].entradas += valor;
+      } else {
+        agrupamento[forma].saidas += valor;
+      }
+      agrupamento[forma].saldo = agrupamento[forma].entradas - agrupamento[forma].saidas;
+      agrupamento[forma].totalItens += 1;
+    });
+
+    return Object.entries(agrupamento).sort((a, b) => b[1].entradas - a[1].entradas);
+  }, [dados]);
 
   const getTituloRelatorio = () => {
     if (tipoRelatorio === 'forma_pagamento') return 'Movimento Caixa Geral - Por Forma de Pagamento';
@@ -63,16 +88,17 @@ export default function RelatorioMovimentoCaixaPrint() {
     const filtroStr = itensParam ? `Filtro: ${itensParam}` : 'Filtro: Todos';
 
     // Título e Cabeçalho
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setTextColor(0, 51, 102);
-    doc.text(getTituloRelatorio(), 14, 15);
+    doc.text(getTituloRelatorio(), 14, 14);
 
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(100);
-    doc.text(`Período: ${periodoStr} | ${filtroStr}`, 14, 21);
-    doc.text(`Emissão: ${dataHoraGeracao}`, doc.internal.pageSize.width - 14, 15, { align: 'right' });
-    doc.text("CP PRO • Gestão Financeira", doc.internal.pageSize.width - 14, 21, { align: 'right' });
+    doc.text(`Período: ${periodoStr} | ${filtroStr}`, 14, 19);
+    doc.text(`Emissão: ${dataHoraGeracao}`, doc.internal.pageSize.width - 14, 14, { align: 'right' });
+    doc.text("CP PRO • Gestão Financeira", doc.internal.pageSize.width - 14, 19, { align: 'right' });
 
+    // 1. Tabela Principal de Lançamentos
     const corpoTabela = dados.map(r => [
       formatarData(r.data_operacao),
       r.responsavel || '-',
@@ -86,21 +112,21 @@ export default function RelatorioMovimentoCaixaPrint() {
     ]);
 
     autoTable(doc, {
-      startY: 26,
+      startY: 23,
       head: [['Data Op.', 'Responsável', 'Data/Hora Reg.', 'Tipo Doc.', 'Forma Pgto', 'Banco/Operador', 'Operação', 'Valor', 'Descrição']],
       body: corpoTabela,
       theme: 'grid',
       styles: { fontSize: 8, cellPadding: 2 },
       headStyles: { fillColor: [0, 51, 102], textColor: 255, fontStyle: 'bold', halign: 'left' },
       columnStyles: {
-        0: { cellWidth: 22, halign: 'center' },
-        1: { cellWidth: 28 },
-        2: { cellWidth: 30, halign: 'center' },
-        3: { cellWidth: 25 },
-        4: { cellWidth: 25 },
-        5: { cellWidth: 28 },
-        6: { cellWidth: 22, halign: 'center' },
-        7: { cellWidth: 28, halign: 'right', fontStyle: 'bold' },
+        0: { cellWidth: 20, halign: 'center' },
+        1: { cellWidth: 26 },
+        2: { cellWidth: 28, halign: 'center' },
+        3: { cellWidth: 24 },
+        4: { cellWidth: 24 },
+        5: { cellWidth: 26 },
+        6: { cellWidth: 20, halign: 'center' },
+        7: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
         8: { cellWidth: 'auto' }
       },
       didParseCell: function (data) {
@@ -122,17 +148,52 @@ export default function RelatorioMovimentoCaixaPrint() {
       }
     });
 
-    const finalY = doc.lastAutoTable.finalY + 6;
-    if (finalY + 25 < doc.internal.pageSize.height) {
-      doc.setFontSize(9);
-      doc.setTextColor(50);
-      doc.text(`Total de Entradas (+): ${formatarMoeda(totalEntradas)}`, doc.internal.pageSize.width - 80, finalY);
-      doc.text(`Total de Saídas (-): ${formatarMoeda(totalSaidas)}`, doc.internal.pageSize.width - 80, finalY + 5);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 51, 102);
-      doc.text(`Saldo Geral: ${formatarMoeda(saldo)}`, doc.internal.pageSize.width - 80, finalY + 11);
+    // 2. Tabela de Totalizadores por Forma de Pagamento e Totais Gerais
+    let finalY = doc.lastAutoTable.finalY + 8;
+    if (finalY + 45 > doc.internal.pageSize.height) {
+      doc.addPage();
+      finalY = 15;
     }
+
+    const corpoTotaisForma = totaisPorForma.map(([forma, valores]) => [
+      forma,
+      `${valores.totalItens} lançamento(s)`,
+      formatarMoeda(valores.entradas),
+      formatarMoeda(valores.saidas),
+      formatarMoeda(valores.saldo)
+    ]);
+
+    // Linha de Total Geral
+    corpoTotaisForma.push([
+      'TOTAL GERAL',
+      `${dados.length} lançamento(s)`,
+      formatarMoeda(totalEntradas),
+      formatarMoeda(totalSaidas),
+      formatarMoeda(saldoGeral)
+    ]);
+
+    autoTable(doc, {
+      startY: finalY,
+      head: [['Resumo por Forma de Pagamento', 'Qtd Itens', 'Total Entradas (+)', 'Total Saídas (-)', 'Saldo Líquido']],
+      body: corpoTotaisForma,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [40, 60, 80], textColor: 255, fontStyle: 'bold' },
+      columnStyles: {
+        0: { fontStyle: 'bold' },
+        1: { halign: 'center' },
+        2: { halign: 'right', textColor: [16, 185, 129], fontStyle: 'bold' },
+        3: { halign: 'right', textColor: [239, 68, 68], fontStyle: 'bold' },
+        4: { halign: 'right', fontStyle: 'bold' }
+      },
+      didParseCell: function (data) {
+        if (data.row.index === corpoTotaisForma.length - 1) {
+          data.cell.styles.fillColor = [0, 51, 102];
+          data.cell.styles.textColor = [255, 255, 255];
+          data.cell.styles.fontStyle = 'bold';
+        }
+      }
+    });
 
     doc.save(`Relatorio_Caixa_Geral_${new Date().toISOString().split('T')[0]}.pdf`);
   };
@@ -188,10 +249,10 @@ export default function RelatorioMovimentoCaixaPrint() {
       </div>
 
       {/* DOCUMENTO DO RELATÓRIO */}
-      <div className="print-container max-w-6xl mx-auto bg-white p-8 rounded-xl border shadow-sm print:border-none print:shadow-none">
+      <div className="print-container max-w-6xl mx-auto bg-white p-8 rounded-xl border shadow-sm print:border-none print:shadow-none space-y-6">
         
         {/* CABEÇALHO */}
-        <div className="flex justify-between items-start border-b pb-4 mb-6">
+        <div className="flex justify-between items-start border-b pb-4">
           <div>
             <h1 className="text-xl font-black tracking-tight text-[#003366]">{getTituloRelatorio()}</h1>
             <p className="text-xs text-gray-500 font-semibold mt-1">
@@ -211,7 +272,7 @@ export default function RelatorioMovimentoCaixaPrint() {
         ) : dados.length === 0 ? (
           <div className="py-16 text-center text-xs text-gray-400 font-semibold">Nenhum lançamento localizado com os filtros selecionados.</div>
         ) : (
-          <div>
+          <div className="space-y-6">
             <table className="w-full text-left border-collapse text-[11px]">
               <thead>
                 <tr className="bg-[#003366] text-white uppercase text-[10px] font-bold">
@@ -249,10 +310,46 @@ export default function RelatorioMovimentoCaixaPrint() {
               </tbody>
             </table>
 
-            {/* QUADRO DE RESUMO E TOTALIZADORES */}
-            <div className="mt-6 flex justify-end">
-              <div className="w-80 bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-2 text-xs">
-                <div className="flex justify-between text-gray-700 font-semibold">
+            {/* SEÇÃO DE TOTALIZADORES: FORMA DE PAGAMENTO + TOTAIS GERAIS */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start pt-2">
+              
+              {/* TABELA DE TOTALIZADOR POR FORMA DE PAGAMENTO */}
+              <div className="md:col-span-7 bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
+                <h4 className="font-bold text-xs uppercase text-gray-800 flex items-center gap-1.5 border-b pb-2">
+                  <CreditCard size={15} className="text-[#003366]" /> Totalizador por Forma de Pagamento
+                </h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-[11px]">
+                    <thead>
+                      <tr className="text-gray-500 font-bold border-b text-[10px] uppercase">
+                        <th className="pb-1">Forma</th>
+                        <th className="pb-1 text-center">Qtd</th>
+                        <th className="pb-1 text-right">Entradas (+)</th>
+                        <th className="pb-1 text-right">Saídas (-)</th>
+                        <th className="pb-1 text-right">Saldo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {totaisPorForma.map(([forma, valores]) => (
+                        <tr key={forma} className="hover:bg-white/60">
+                          <td className="py-1.5 font-bold text-gray-800">{forma}</td>
+                          <td className="py-1.5 text-center text-gray-500">{valores.totalItens}</td>
+                          <td className="py-1.5 text-right font-semibold text-emerald-600">{formatarMoeda(valores.entradas)}</td>
+                          <td className="py-1.5 text-right font-semibold text-red-600">{formatarMoeda(valores.saidas)}</td>
+                          <td className={`py-1.5 text-right font-black ${valores.saldo >= 0 ? 'text-indigo-950' : 'text-red-700'}`}>
+                            {formatarMoeda(valores.saldo)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* QUADRO DE RESUMO GERAL */}
+              <div className="md:col-span-5 bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-2 text-xs">
+                <h4 className="font-bold text-xs uppercase text-gray-800 border-b pb-2">Resumo Geral do Período</h4>
+                <div className="flex justify-between text-gray-700 font-semibold pt-1">
                   <span>Total de Entradas (+):</span>
                   <span className="font-bold text-emerald-600">{formatarMoeda(totalEntradas)}</span>
                 </div>
@@ -262,9 +359,10 @@ export default function RelatorioMovimentoCaixaPrint() {
                 </div>
                 <div className="flex justify-between border-t border-gray-300 pt-2 font-black text-sm text-[#003366]">
                   <span>Saldo Geral do Caixa:</span>
-                  <span className={saldo >= 0 ? 'text-[#003366]' : 'text-red-600'}>{formatarMoeda(saldo)}</span>
+                  <span className={saldoGeral >= 0 ? 'text-[#003366]' : 'text-red-600'}>{formatarMoeda(saldoGeral)}</span>
                 </div>
               </div>
+
             </div>
           </div>
         )}
