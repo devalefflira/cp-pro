@@ -22,6 +22,8 @@ import RelatorioEvolucaoContaPrint from './pages/RelatorioEvolucaoContaPrint';
 import Conciliacao from './pages/Conciliacao';
 import UsuariosAdmin from './pages/UsuariosAdmin';
 import ContasPagar from './pages/ContasPagar';
+import MovimentoCaixa from './pages/MovimentoCaixa';
+import RelatorioMovimentoCaixaPrint from './pages/RelatorioMovimentoCaixaPrint';
 
 function App() {
   return (
@@ -38,16 +40,17 @@ function App() {
         <Route path="/print/despesas-cc" element={<RelatorioDespesasCentroCustoPrint />} />
         <Route path="/print/despesas-fornecedor" element={<RelatorioDespesasFornecedorPrint />} />
         <Route path="/print/evolucao-conta" element={<RelatorioEvolucaoContaPrint />} />
+        <Route path="/print/movimento-caixa" element={<RelatorioMovimentoCaixaPrint />} />
 
         {/* ROTAS DO SISTEMA (COM SIDEBAR) */}
-        <Route path="/dashboard" element={<MainLayout><ContasPagar /></MainLayout>} />
-        <Route path="/contas-a-pagar" element={<MainLayout><ContasPagar /></MainLayout>} />
         <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
+        <Route path="/contas-a-pagar" element={<MainLayout><ContasPagar /></MainLayout>} />
+        <Route path="/movimento-caixa" element={<MainLayout><MovimentoCaixa /></MainLayout>} />
         <Route path="/incluir" element={<MainLayout><IncluirLancamento /></MainLayout>} />
         <Route path="/listagem" element={<MainLayout><Listagem /></MainLayout>} />
         <Route path="/despesas" element={<MainLayout><Despesas /></MainLayout>} />
         <Route path="/conciliacao" element={<MainLayout><Conciliacao /></MainLayout>} />
-        <Route path="/usuarios" element={<MainLayout><UsuariosAdmin /></MainLayout>} /> {/* 👈 ROTA CONFIGURADA */}
+        <Route path="/usuarios" element={<MainLayout><UsuariosAdmin /></MainLayout>} />
         <Route path="/relatorios" element={<MainLayout><Relatorios /></MainLayout>} />
         <Route path="/etiquetas" element={<MainLayout><Etiquetas /></MainLayout>} />
         <Route path="/tarefas" element={<MainLayout><Tarefas /></MainLayout>} />

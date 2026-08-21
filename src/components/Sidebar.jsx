@@ -4,7 +4,7 @@ import { supabase } from '../services/supabase';
 import { 
   LayoutDashboard, Wallet, ArrowLeftRight, FileText, 
   CheckSquare, Calculator, Settings, Crown, LogOut, ChevronLeft, 
-  ChevronRight, ShieldAlert, Users 
+  ChevronRight, ShieldAlert, Users, CircleDollarSign 
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -44,6 +44,7 @@ export default function Sidebar() {
 
   const menuItems = [
     { path: '/contas-a-pagar', label: 'Contas a Pagar', icon: LayoutDashboard, roles: ['admin', 'gestor', 'user'] },
+    { path: '/movimento-caixa', label: 'Movimento Caixa', icon: CircleDollarSign, roles: ['admin', 'gestor', 'user'] },
     { path: '/despesas', label: 'Despesas', icon: Wallet, roles: ['admin', 'gestor', 'user'] },
     { path: '/conciliacao', label: 'Conciliação Bancária', icon: ArrowLeftRight, roles: ['admin', 'gestor'] },
     { path: '/usuarios', label: 'Gestão de Usuários', icon: Users, roles: ['admin'] },

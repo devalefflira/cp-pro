@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { Users, UserPlus, Shield, Save, Eye, Edit, Trash, Lock, Trash2 } from 'lucide-react';
+import { Users, UserPlus, Shield, Eye, Edit, Trash, Lock, Trash2, Check, User } from 'lucide-react';
 
 export default function UsuariosAdmin() {
     const [usuarios, setUsuarios] = useState([]);
     const [loading, setLoading] = useState(false);
     const [currentUserEmail, setCurrentUserEmail] = useState('');
 
+    const [novoNome, setNovoNome] = useState('');
     const [novoEmail, setNovoEmail] = useState('');
     const [novaSenha, setNovaSenha] = useState('');
     const [novoRole, setNovoRole] = useState('user');
@@ -14,14 +15,15 @@ export default function UsuariosAdmin() {
 
     const [usuarioEdicaoPermissao, setUsuarioEdicaoPermissao] = useState(null);
     const [permissoesLocais, setPermissoesLocais] = useState([]);
+    const [salvandoNomeId, setSalvandoNomeId] = useState(null);
 
-    // Submódulos e abas para a matriz de permissões
     const modulosSistema = [
         { id: 'cp_visao_geral', label: 'Contas a Pagar > Visão Geral' },
         { id: 'cp_incluir', label: 'Contas a Pagar > Incluir Lançamento' },
         { id: 'cp_listagem', label: 'Contas a Pagar > Listagem' },
         { id: 'cp_relatorios', label: 'Contas a Pagar > Relatórios' },
         { id: 'cp_etiquetas', label: 'Contas a Pagar > Etiquetas' },
+        { id: 'movimento_caixa', label: 'Movimento Caixa Geral' },
         { id: 'despesas_dashboard', label: 'Despesas > Dashboard' },
         { id: 'despesas_listagem', label: 'Despesas > Listagem' },
         { id: 'despesas_nova', label: 'Despesas > Nova Despesa' },
@@ -59,13 +61,23 @@ export default function UsuariosAdmin() {
         setLoading(false);
     };
 
+    const handleAtualizarNome = async (userId, novoValorNome) => {
+        setSalvandoNomeId(userId);
+        const { error } = await supabase.from('profiles').update({ nome: novoValorNome }).eq('id', userId);
+        if (error) {
+            alert("Erro ao atualizar nome: " + error.message);
+        } else {
+            setUsuarios(prev => prev.map(u => u.id === userId ? { ...u, nome: novoValorNome } : u));
+        }
+        setTimeout(() => setSalvandoNomeId(null), 1500);
+    };
+
     const handleCriarUsuario = async (e) => {
         e.preventDefault();
         if (!novoEmail || !novaSenha) return alert("Preencha o e-mail e a senha.");
 
         setLoading(true);
 
-        // Executa o cadastro administrativo diretamente no banco
         const { data: userId, error: rpcError } = await supabase.rpc('admin_criar_usuario', {
             p_email: novoEmail,
             p_senha: novaSenha,
@@ -78,7 +90,10 @@ export default function UsuariosAdmin() {
             return;
         }
 
-        // Preenche a matriz de permissões do usuário criado
+        if (userId && novoNome) {
+            await supabase.from('profiles').update({ nome: novoNome }).eq('id', userId);
+        }
+
         const permissoesIniciais = modulosSistema.map(m => {
             let pVis = false, pEdit = false, pExc = false;
 
@@ -89,7 +104,7 @@ export default function UsuariosAdmin() {
                     pVis = true; pEdit = true; pExc = true;
                 }
             } else if (novoRole === 'user') {
-                const liberados = ['cp_incluir', 'cp_listagem', 'cp_etiquetas', 'despesas_listagem', 'despesas_nova', 'tarefas', 'calculadoras', 'grupos'];
+                const liberados = ['cp_incluir', 'cp_listagem', 'cp_etiquetas', 'movimento_caixa', 'despesas_listagem', 'despesas_nova', 'tarefas', 'calculadoras', 'grupos'];
                 if (liberados.includes(m.id)) {
                     pVis = true; pEdit = true; pExc = true;
                 } else if (m.id === 'despesas_estrutura') {
@@ -109,6 +124,7 @@ export default function UsuariosAdmin() {
         await supabase.from('permissoes_usuario').insert(permissoesIniciais);
 
         alert(`Usuário ${novoEmail} criado e ativado com sucesso!`);
+        setNovoNome('');
         setNovoEmail('');
         setNovaSenha('');
         setModalCriar(false);
@@ -201,7 +217,8 @@ export default function UsuariosAdmin() {
                     <table className="w-full text-left border-collapse text-xs">
                         <thead>
                             <tr className="bg-gray-50 border-b text-gray-500 uppercase font-bold">
-                                <th className="p-3">E-mail do Usuário</th>
+                                <th className="p-3">Nome do Usuário</th>
+                                <th className="p-3">E-mail de Acesso</th>
                                 <th className="p-3">Perfil Geral (Role)</th>
                                 <th className="p-3">Status</th>
                                 <th className="p-3 text-center">Permissões Específicas</th>
@@ -211,10 +228,21 @@ export default function UsuariosAdmin() {
                         <tbody className="divide-y divide-gray-100">
                             {usuarios.map(u => (
                                 <tr key={u.id} className="hover:bg-gray-50">
-                                    <td className="p-3 font-bold text-gray-800">{u.email}</td>
                                     <td className="p-3">
-                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${u.role === 'admin' ? 'bg-purple-100 text-purple-900' : u.role === 'gestor' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-700'
-                                            }`}>
+                                        <div className="flex items-center gap-1.5">
+                                            <input
+                                                type="text"
+                                                defaultValue={u.nome || ''}
+                                                placeholder="Digite o nome..."
+                                                onBlur={(e) => handleAtualizarNome(u.id, e.target.value)}
+                                                className="p-1.5 border rounded bg-gray-50/70 hover:bg-white focus:bg-white text-xs font-bold text-gray-800 w-44 outline-none focus:ring-1 focus:ring-primary"
+                                            />
+                                            {salvandoNomeId === u.id && <Check size={14} className="text-emerald-600 animate-pulse" />}
+                                        </div>
+                                    </td>
+                                    <td className="p-3 font-semibold text-gray-700">{u.email}</td>
+                                    <td className="p-3">
+                                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${u.role === 'admin' ? 'bg-purple-100 text-purple-900' : u.role === 'gestor' ? 'bg-blue-100 text-blue-900' : 'bg-gray-100 text-gray-700'}`}>
                                             {u.role === 'admin' ? 'Administrador' : u.role === 'gestor' ? 'Gestor' : 'Usuário Comum'}
                                         </span>
                                     </td>
@@ -253,6 +281,11 @@ export default function UsuariosAdmin() {
 
                         <form onSubmit={handleCriarUsuario} className="space-y-3 text-xs">
                             <div>
+                                <label className="block font-bold text-gray-700 mb-1">Nome do Usuário *</label>
+                                <input type="text" required value={novoNome} onChange={e => setNovoNome(e.target.value)} className="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold" placeholder="Ex: Maria Silva" />
+                            </div>
+
+                            <div>
                                 <label className="block font-bold text-gray-700 mb-1">E-mail de Acesso *</label>
                                 <input type="email" required value={novoEmail} onChange={e => setNovoEmail(e.target.value)} className="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold" placeholder="usuario@empresa.com" />
                             </div>
@@ -285,7 +318,7 @@ export default function UsuariosAdmin() {
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
                     <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4 shadow-2xl border">
                         <h3 className="font-bold text-lg text-gray-800 border-b pb-2 flex items-center gap-2">
-                            <Lock className="text-indigo-600" /> Matriz de Permissões: {usuarioEdicaoPermissao.email}
+                            <Lock className="text-indigo-600" /> Matriz de Permissões: {usuarioEdicaoPermissao.nome || usuarioEdicaoPermissao.email}
                         </h3>
 
                         <div className="overflow-x-auto">
