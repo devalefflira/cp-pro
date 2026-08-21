@@ -61,7 +61,6 @@ export default function ListagemTab() {
     carregarRegistros();
   };
 
-  // Paginação lógica
   const indiceInicio = (paginaAtual - 1) * itensPorPagina;
   const registrosPaginados = registros.slice(indiceInicio, indiceInicio + Number(itensPorPagina));
   const totalPaginas = Math.ceil(registros.length / itensPorPagina) || 1;
@@ -101,6 +100,7 @@ export default function ListagemTab() {
               <option value="Despesa">Despesa</option>
               <option value="Devolução">Devolução</option>
               <option value="Fatura AtualCard">Fatura AtualCard</option>
+              <option value="Sangria">Sangria</option>
             </select>
           </div>
           <div>
@@ -127,6 +127,8 @@ export default function ListagemTab() {
               <option value="RomCard">RomCard</option>
               <option value="Safra">Safra</option>
               <option value="WebNex">WebNex</option>
+              <option value="Tesouraria">Tesouraria</option>
+              <option value="N/A">N/A</option>
             </select>
           </div>
           <div>

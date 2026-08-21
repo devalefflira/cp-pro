@@ -3,7 +3,7 @@ import { supabase } from '../../services/supabase';
 import { PlusCircle, Layers, CheckCircle, Trash2, Plus, ArrowDown } from 'lucide-react';
 
 export default function NovoLancamentoTab() {
-  const [modo, setModo] = useState('individual'); // 'individual' ou 'lote'
+  const [modo, setModo] = useState('individual');
   const [loading, setLoading] = useState(false);
   const [sucesso, setSucesso] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState('');
@@ -31,7 +31,6 @@ export default function NovoLancamentoTab() {
     descricaoPadrao: ''
   });
 
-  // Input de valor atual do lote e lista prévia acumulada
   const [valorInputLote, setValorInputLote] = useState('');
   const [listaPreviaLote, setListaPreviaLote] = useState([]);
   const inputValorLoteRef = useRef(null);
@@ -62,7 +61,6 @@ export default function NovoLancamentoTab() {
     setDataHoraAtual(`${dataFormatada}, ${horaFormatada}`);
   };
 
-  // Máscara monetária pt-BR (ex: 1.550,50)
   const aplicarMascaraMoeda = (valorRaw) => {
     let raw = String(valorRaw).replace(/\D/g, '');
     if (!raw) return '';
@@ -81,7 +79,6 @@ export default function NovoLancamentoTab() {
   const formatarMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
   const formatarData = (d) => d ? d.split('-').reverse().join('/') : '';
 
-  // Adicionar valor na lista prévia (Acionado ao dar ENTER)
   const handleAdicionarValorLote = (e) => {
     if (e) e.preventDefault();
     const valorFloat = parseValorParaFloat(valorInputLote);
@@ -112,7 +109,6 @@ export default function NovoLancamentoTab() {
     setListaPreviaLote(prev => prev.filter(item => item.id !== id));
   };
 
-  // Submit Individual
   const handleSubmitIndividual = async (e) => {
     e.preventDefault();
     const valorFloat = parseValorParaFloat(formIndividual.valor);
@@ -156,7 +152,6 @@ export default function NovoLancamentoTab() {
     }
   };
 
-  // Submit Lote Completo da Lista Prévia
   const handleSubmitLote = async () => {
     if (listaPreviaLote.length === 0) {
       return alert("Adicione ao menos um valor à lista prévia antes de salvar.");
@@ -265,6 +260,7 @@ export default function NovoLancamentoTab() {
                 <option value="Despesa">Despesa</option>
                 <option value="Devolução">Devolução</option>
                 <option value="Fatura AtualCard">Fatura AtualCard</option>
+                <option value="Sangria">Sangria</option>
               </select>
             </div>
 
@@ -304,6 +300,7 @@ export default function NovoLancamentoTab() {
                 <option value="RomCard">RomCard</option>
                 <option value="Safra">Safra</option>
                 <option value="WebNex">WebNex</option>
+                <option value="Tesouraria">Tesouraria</option>
                 <option value="N/A">N/A</option>
               </select>
             </div>
@@ -354,6 +351,7 @@ export default function NovoLancamentoTab() {
                   <option value="Despesa">Despesa</option>
                   <option value="Devolução">Devolução</option>
                   <option value="Fatura AtualCard">Fatura AtualCard</option>
+                  <option value="Sangria">Sangria</option>
                 </select>
               </div>
 
@@ -380,6 +378,7 @@ export default function NovoLancamentoTab() {
                   <option value="RomCard">RomCard</option>
                   <option value="Safra">Safra</option>
                   <option value="WebNex">WebNex</option>
+                  <option value="Tesouraria">Tesouraria</option>
                   <option value="N/A">N/A</option>
                 </select>
               </div>
