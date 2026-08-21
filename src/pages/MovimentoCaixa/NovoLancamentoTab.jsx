@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../services/supabase';
-import { PlusCircle, Layers, CheckCircle, Trash2 } from 'lucide-react';
+import { PlusCircle, Layers, CheckCircle, Trash2, Plus, ArrowDown } from 'lucide-react';
 
 export default function NovoLancamentoTab() {
   const [modo, setModo] = useState('individual'); // 'individual' ou 'lote'
@@ -21,9 +21,8 @@ export default function NovoLancamentoTab() {
     descricao: ''
   });
 
-  // Formulário em Lote
+  // Formulário em Lote (Critérios Compartilhados)
   const [formLote, setFormLote] = useState({
-    quantidade: 5,
     data_operacao: new Date().toISOString().split('T')[0],
     tipo_documento: 'PIX',
     forma_pagamento: 'PIX',
@@ -32,8 +31,10 @@ export default function NovoLancamentoTab() {
     descricaoPadrao: ''
   });
 
-  // Array dinâmico de valores para os lançamentos em lote
-  const [valoresLote, setValoresLote] = useState(Array(5).fill(''));
+  // Input de valor atual do lote e lista prévia acumulada
+  const [valorInputLote, setValorInputLote] = useState('');
+  const [listaPreviaLote, setListaPreviaLote] = useState([]);
+  const inputValorLoteRef = useRef(null);
 
   useEffect(() => {
     carregarUsuarioLogado();
@@ -77,26 +78,38 @@ export default function NovoLancamentoTab() {
     return parseFloat(limpo) || 0;
   };
 
-  // Atualiza a quantidade e redimensiona a lista de valores
-  const handleQuantidadeChange = (novaQtd) => {
-    const qtd = Math.max(1, Math.min(100, parseInt(novaQtd) || 1));
-    setFormLote(prev => ({ ...prev, quantidade: qtd }));
-    setValoresLote(prev => {
-      const novoArray = Array(qtd).fill('');
-      for (let i = 0; i < Math.min(prev.length, qtd); i++) {
-        novoArray[i] = prev[i];
+  const formatarMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  const formatarData = (d) => d ? d.split('-').reverse().join('/') : '';
+
+  // Adicionar valor na lista prévia (Acionado ao dar ENTER)
+  const handleAdicionarValorLote = (e) => {
+    if (e) e.preventDefault();
+    const valorFloat = parseValorParaFloat(valorInputLote);
+
+    if (valorFloat <= 0) return;
+
+    setListaPreviaLote(prev => [
+      ...prev,
+      {
+        id: Date.now() + Math.random(),
+        valor: valorFloat,
+        data_operacao: formLote.data_operacao,
+        tipo_documento: formLote.tipo_documento,
+        forma_pagamento: formLote.forma_pagamento,
+        banco_operador: formLote.banco_operador,
+        tipo_operacao: formLote.tipo_operacao,
+        descricao: formLote.descricaoPadrao
       }
-      return novoArray;
-    });
+    ]);
+
+    setValorInputLote('');
+    if (inputValorLoteRef.current) {
+      inputValorLoteRef.current.focus();
+    }
   };
 
-  const handleValorLoteChange = (index, value) => {
-    const formatado = aplicarMascaraMoeda(value);
-    setValoresLote(prev => {
-      const copy = [...prev];
-      copy[index] = formatado;
-      return copy;
-    });
+  const handleRemoverItemPrevia = (id) => {
+    setListaPreviaLote(prev => prev.filter(item => item.id !== id));
   };
 
   // Submit Individual
@@ -143,59 +156,56 @@ export default function NovoLancamentoTab() {
     }
   };
 
-  // Submit em Lote
-  const handleSubmitLote = async (e) => {
-    e.preventDefault();
-
-    const valoresValidos = valoresLote
-      .map(v => parseValorParaFloat(v))
-      .filter(v => v > 0);
-
-    if (valoresValidos.length === 0) {
-      return alert("Preencha ao menos um valor válido para salvar os lançamentos em lote.");
+  // Submit Lote Completo da Lista Prévia
+  const handleSubmitLote = async () => {
+    if (listaPreviaLote.length === 0) {
+      return alert("Adicione ao menos um valor à lista prévia antes de salvar.");
     }
 
     setLoading(true);
 
-    const payloadLote = valoresValidos.map((val, idx) => ({
+    const payloadLote = listaPreviaLote.map((item, idx) => ({
       responsavel: responsavelNome || 'Sistema',
       data_lancamento: dataHoraAtual,
-      data_operacao: formLote.data_operacao,
-      tipo_documento: formLote.tipo_documento,
-      valor: val,
-      forma_pagamento: formLote.forma_pagamento,
-      banco_operador: formLote.banco_operador,
-      tipo_operacao: formLote.tipo_operacao,
-      descricao: formLote.descricaoPadrao 
-        ? `${formLote.descricaoPadrao} (Item ${idx + 1}/${valoresValidos.length})`
-        : `Lançamento em Lote (${idx + 1}/${valoresValidos.length})`
+      data_operacao: item.data_operacao,
+      tipo_documento: item.tipo_documento,
+      valor: item.valor,
+      forma_pagamento: item.forma_pagamento,
+      banco_operador: item.banco_operador,
+      tipo_operacao: item.tipo_operacao,
+      descricao: item.descricao 
+        ? `${item.descricao} (Item ${idx + 1}/${listaPreviaLote.length})` 
+        : `Lançamento em Lote (${idx + 1}/${listaPreviaLote.length})`
     }));
 
     const { error } = await supabase.from('movimento_caixa').insert(payloadLote);
 
     setLoading(false);
     if (error) {
-      alert("Erro ao salvar lançamentos em lote: " + error.message);
+      alert("Erro ao salvar lote: " + error.message);
     } else {
       setSucesso(true);
-      setMensagemSucesso(`${payloadLote.length} lançamentos em lote salvos com sucesso!`);
-      setValoresLote(Array(formLote.quantidade).fill(''));
+      setMensagemSucesso(`${payloadLote.length} lançamentos em lote gravados com sucesso!`);
+      setListaPreviaLote([]);
+      setValorInputLote('');
       setTimeout(() => setSucesso(false), 4000);
     }
   };
 
+  const totalAcumuladoLote = listaPreviaLote.reduce((acc, curr) => acc + curr.valor, 0);
+
   return (
-    <div className="bg-white p-8 rounded-xl border shadow-sm max-w-4xl mx-auto space-y-6">
+    <div className="bg-white p-8 rounded-xl border shadow-sm max-w-5xl mx-auto space-y-6">
       
-      {/* SELETOR DE MODO (INDIVIDUAL VS LOTE) */}
+      {/* SELETOR DE MODO */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4 gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
             {modo === 'individual' ? <PlusCircle className="text-primary" /> : <Layers className="text-indigo-600" />}
-            {modo === 'individual' ? 'Novo Lançamento no Caixa Geral' : 'Lançamento em Lote no Caixa Geral'}
+            {modo === 'individual' ? 'Novo Lançamento no Caixa Geral' : 'Lançamento em Lote com Entrada Contínua'}
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            {modo === 'individual' ? 'Cadastre uma operação unitária.' : 'Replique os critérios da operação e preencha múltiplos valores.'}
+            {modo === 'individual' ? 'Cadastre uma operação unitária.' : 'Defina os critérios gerais, digite os valores dando Enter e revise na lista antes de salvar.'}
           </p>
         </div>
 
@@ -211,7 +221,7 @@ export default function NovoLancamentoTab() {
           </button>
           <button
             type="button"
-            onClick={() => setModo('lote')}
+            onClick={() => { setModo('lote'); setTimeout(() => inputValorLoteRef.current?.focus(), 100); }}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
               modo === 'lote' ? 'bg-[#0f172a] text-white shadow-sm' : 'text-gray-600 hover:text-gray-900'
             }`}
@@ -321,28 +331,15 @@ export default function NovoLancamentoTab() {
 
       {/* --- FORMULÁRIO EM LOTE --- */}
       {modo === 'lote' && (
-        <form onSubmit={handleSubmitLote} className="space-y-6 text-xs">
+        <div className="space-y-6 text-xs">
           
-          {/* CRITÉRIOS PADRÃO COMPARTILHADOS */}
+          {/* CRITÉRIOS FIXOS DO LOTE */}
           <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-4">
             <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
               <Layers size={16} className="text-indigo-600" /> Critérios Comuns para o Lote
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">Quantidade de Lançamentos *</label>
-                <input 
-                  type="number" 
-                  min="1" 
-                  max="100" 
-                  required 
-                  value={formLote.quantidade} 
-                  onChange={e => handleQuantidadeChange(e.target.value)} 
-                  className="w-full p-2.5 border rounded-lg bg-white font-black text-indigo-900 text-sm focus:ring-2 focus:ring-indigo-500" 
-                />
-              </div>
-
               <div>
                 <label className="block font-bold text-gray-700 mb-1">Data Operação *</label>
                 <input type="date" required value={formLote.data_operacao} onChange={e => setFormLote({ ...formLote, data_operacao: e.target.value })} className="w-full p-2.5 border rounded-lg bg-white font-semibold" />
@@ -395,11 +392,11 @@ export default function NovoLancamentoTab() {
                 </select>
               </div>
 
-              <div className="sm:col-span-2 md:col-span-3">
+              <div>
                 <label className="block font-bold text-gray-700 mb-1">Descrição Base (Opcional)</label>
                 <input 
                   type="text" 
-                  placeholder="Ex: Recebimento de vendas da manhã..." 
+                  placeholder="Ex: Vendas de balcão..." 
                   value={formLote.descricaoPadrao} 
                   onChange={e => setFormLote({ ...formLote, descricaoPadrao: e.target.value })} 
                   className="w-full p-2.5 border rounded-lg bg-white" 
@@ -408,58 +405,116 @@ export default function NovoLancamentoTab() {
             </div>
           </div>
 
-          {/* CAMPOS DINÂMICOS APENAS DE VALORES */}
-          <div className="space-y-3">
-            <div className="flex justify-between items-center">
-              <label className="font-extrabold text-gray-800 text-xs uppercase tracking-wide">
-                Informe os {valoresLote.length} Valores do Lote:
+          {/* CAMPO DE ENTRADA CONTÍNUA COM ENTER */}
+          <form onSubmit={handleAdicionarValorLote} className="bg-indigo-50/70 p-5 rounded-xl border border-indigo-100 flex flex-col sm:flex-row items-end gap-3">
+            <div className="flex-1 w-full">
+              <label className="block font-bold text-indigo-950 mb-1 text-xs">
+                Digite o Valor (R$) e pressione <span className="bg-indigo-200 px-1.5 py-0.5 rounded font-black text-indigo-900">ENTER ↵</span> para adicionar:
               </label>
-              <span className="text-[11px] text-gray-500 font-medium">
-                Total do Lote: <strong className="text-emerald-700 font-black">
-                  R$ {valoresLote.reduce((acc, v) => acc + parseValorParaFloat(v), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                </strong>
+              <input
+                ref={inputValorLoteRef}
+                type="text"
+                inputMode="numeric"
+                placeholder="0,00"
+                value={valorInputLote}
+                onChange={e => setValorInputLote(aplicarMascaraMoeda(e.target.value))}
+                className="w-full p-3 border-2 border-indigo-300 focus:border-indigo-600 rounded-lg bg-white font-black text-gray-900 text-base outline-none shadow-sm"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg shadow flex items-center justify-center gap-2 text-xs w-full sm:w-auto h-[46px]"
+            >
+              <Plus size={16} /> Adicionar Valor
+            </button>
+          </form>
+
+          {/* TABELA DE PRÉVIA DOS LANÇAMENTOS ANTES DE SALVAR */}
+          <div className="space-y-3">
+            <div className="flex justify-between items-center border-b pb-2">
+              <h4 className="font-extrabold text-gray-800 text-xs uppercase tracking-wide flex items-center gap-1.5">
+                <ArrowDown size={14} className="text-indigo-600" /> Lista Prévia para Conferência ({listaPreviaLote.length} {listaPreviaLote.length === 1 ? 'item' : 'itens'})
+              </h4>
+              <span className="text-xs text-gray-600 font-medium">
+                Total Acumulado: <strong className="text-emerald-700 font-black text-sm">{formatarMoeda(totalAcumuladoLote)}</strong>
               </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-80 overflow-y-auto p-1">
-              {valoresLote.map((val, idx) => (
-                <div key={idx} className="bg-white p-3 rounded-xl border border-gray-200 shadow-sm flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-lg bg-gray-100 text-gray-600 font-bold flex items-center justify-center text-xs shrink-0">
-                    {idx + 1}
-                  </span>
-                  <div className="flex-1">
-                    <span className="block text-[9px] font-bold text-gray-400 uppercase">Valor R$</span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="0,00"
-                      value={val}
-                      onChange={e => handleValorLoteChange(idx, e.target.value)}
-                      className="w-full p-1.5 border-b border-gray-300 font-black text-gray-900 text-xs focus:outline-none focus:border-indigo-600"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            {listaPreviaLote.length === 0 ? (
+              <div className="text-center py-10 border border-dashed rounded-xl text-gray-400 bg-gray-50/50">
+                Nenhum valor adicionado à lista ainda. Digite um valor acima e pressione <strong>Enter</strong>.
+              </div>
+            ) : (
+              <div className="overflow-x-auto border rounded-xl shadow-sm">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-gray-100 border-b text-gray-600 font-bold uppercase text-[10px]">
+                      <th className="p-2.5 text-center w-12">#</th>
+                      <th className="p-2.5">Data Op.</th>
+                      <th className="p-2.5">Tipo Doc.</th>
+                      <th className="p-2.5">Forma Pgto</th>
+                      <th className="p-2.5">Banco / Operador</th>
+                      <th className="p-2.5 text-center">Operação</th>
+                      <th className="p-2.5 text-right">Valor</th>
+                      <th className="p-2.5 text-center w-16">Remover</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {listaPreviaLote.map((item, idx) => (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="p-2.5 text-center font-bold text-gray-400">{idx + 1}</td>
+                        <td className="p-2.5 font-semibold text-gray-700">{formatarData(item.data_operacao)}</td>
+                        <td className="p-2.5 font-bold text-gray-800">{item.tipo_documento}</td>
+                        <td className="p-2.5 text-gray-600">{item.forma_pagamento}</td>
+                        <td className="p-2.5 font-semibold text-indigo-900">{item.banco_operador}</td>
+                        <td className="p-2.5 text-center">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${item.tipo_operacao.includes('Entrada') ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                            {item.tipo_operacao}
+                          </span>
+                        </td>
+                        <td className={`p-2.5 text-right font-black text-sm ${item.tipo_operacao.includes('Entrada') ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {formatarMoeda(item.valor)}
+                        </td>
+                        <td className="p-2.5 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoverItemPrevia(item.id)}
+                            className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                            title="Remover este item"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <div className="flex justify-between items-center pt-4 border-t">
             <button 
               type="button" 
-              onClick={() => setValoresLote(Array(formLote.quantidade).fill(''))} 
-              className="px-5 py-2.5 border rounded-lg text-gray-600 font-semibold hover:bg-gray-50"
+              onClick={() => setListaPreviaLote([])} 
+              disabled={listaPreviaLote.length === 0}
+              className="px-5 py-2.5 border rounded-lg text-gray-600 font-semibold hover:bg-gray-50 disabled:opacity-30"
             >
-              Limpar Valores
+              Limpar Lista Prévia
             </button>
+
             <button 
-              type="submit" 
-              disabled={loading} 
-              className="bg-[#0f172a] hover:bg-slate-800 text-white font-bold py-2.5 px-8 rounded-lg shadow-md flex items-center gap-2"
+              type="button" 
+              onClick={handleSubmitLote}
+              disabled={loading || listaPreviaLote.length === 0} 
+              className="bg-[#0f172a] hover:bg-slate-800 text-white font-bold py-2.5 px-8 rounded-lg shadow-md flex items-center gap-2 disabled:opacity-40"
             >
-              <Layers size={16} /> {loading ? "Gravando..." : `Salvar ${valoresLote.filter(v => parseValorParaFloat(v) > 0).length} Lançamentos`}
+              <Layers size={16} /> {loading ? "Gravando..." : `Confirmar e Salvar ${listaPreviaLote.length} Lançamentos`}
             </button>
           </div>
-        </form>
+
+        </div>
       )}
 
     </div>
