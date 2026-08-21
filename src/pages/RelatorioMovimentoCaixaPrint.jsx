@@ -11,13 +11,14 @@ export default function RelatorioMovimentoCaixaPrint() {
   const tipoRelatorio = searchParams.get('tipo') || 'tipo_operacao';
   const inicio = searchParams.get('inicio');
   const fim = searchParams.get('fim');
+  const itensParam = searchParams.get('itens');
 
   const [dados, setDados] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     carregarDados();
-  }, [tipoRelatorio, inicio, fim]);
+  }, [tipoRelatorio, inicio, fim, itensParam]);
 
   const carregarDados = async () => {
     setLoading(true);
@@ -26,12 +27,22 @@ export default function RelatorioMovimentoCaixaPrint() {
     if (inicio) query = query.gte('data_operacao', inicio);
     if (fim) query = query.lte('data_operacao', fim);
 
+    // Aplica o filtro de itens selecionados na página de impressão
+    if (itensParam) {
+      const itensArray = itensParam.split(',');
+      if (itensArray.length > 0) {
+        if (tipoRelatorio === 'tipo_operacao') query = query.in('tipo_operacao', itensArray);
+        else if (tipoRelatorio === 'forma_pagamento') query = query.in('forma_pagamento', itensArray);
+        else if (tipoRelatorio === 'tipo_documento') query = query.in('tipo_documento', itensArray);
+      }
+    }
+
     const { data } = await query;
     setDados(data || []);
     setLoading(false);
   };
 
-  const formatarMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  const formatarMoeda = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val || 0);
   const formatarData = (d) => d ? d.split('-').reverse().join('/') : '';
 
   const totalEntradas = dados.filter(d => d.tipo_operacao?.includes('Entrada')).reduce((acc, curr) => acc + Number(curr.valor || 0), 0);
@@ -49,6 +60,7 @@ export default function RelatorioMovimentoCaixaPrint() {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const dataHoraGeracao = new Date().toLocaleString('pt-BR');
     const periodoStr = `${inicio ? formatarData(inicio) : 'Início'} até ${fim ? formatarData(fim) : 'Hoje'}`;
+    const filtroStr = itensParam ? `Filtro: ${itensParam}` : 'Filtro: Todos';
 
     // Título e Cabeçalho
     doc.setFontSize(16);
@@ -57,7 +69,7 @@ export default function RelatorioMovimentoCaixaPrint() {
 
     doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text(`Período: ${periodoStr}`, 14, 21);
+    doc.text(`Período: ${periodoStr} | ${filtroStr}`, 14, 21);
     doc.text(`Emissão: ${dataHoraGeracao}`, doc.internal.pageSize.width - 14, 15, { align: 'right' });
     doc.text("CP PRO • Gestão Financeira", doc.internal.pageSize.width - 14, 21, { align: 'right' });
 
@@ -110,7 +122,6 @@ export default function RelatorioMovimentoCaixaPrint() {
       }
     });
 
-    // Quadro de Totais
     const finalY = doc.lastAutoTable.finalY + 6;
     if (finalY + 25 < doc.internal.pageSize.height) {
       doc.setFontSize(9);
@@ -151,7 +162,7 @@ export default function RelatorioMovimentoCaixaPrint() {
         }
       `}</style>
 
-      {/* BARRA SUPERIOR DE AÇÕES (OCULTA NA IMPRESSÃO) */}
+      {/* BARRA SUPERIOR DE AÇÕES */}
       <div className="max-w-6xl mx-auto mb-6 flex justify-between items-center bg-white p-4 rounded-xl border shadow-sm print:hidden">
         <button
           onClick={() => navigate('/movimento-caixa')}
@@ -185,6 +196,7 @@ export default function RelatorioMovimentoCaixaPrint() {
             <h1 className="text-xl font-black tracking-tight text-[#003366]">{getTituloRelatorio()}</h1>
             <p className="text-xs text-gray-500 font-semibold mt-1">
               Período: <strong>{inicio ? formatarData(inicio) : 'Início'}</strong> até <strong>{fim ? formatarData(fim) : 'Hoje'}</strong>
+              {itensParam && <span className="ml-2 font-normal text-gray-400">| Filtro: <strong className="text-gray-700">{itensParam}</strong></span>}
             </p>
           </div>
           <div className="text-right text-[11px] text-gray-500 space-y-0.5">
@@ -197,7 +209,7 @@ export default function RelatorioMovimentoCaixaPrint() {
         {loading ? (
           <div className="py-16 text-center text-xs text-gray-400 font-semibold">Carregando lançamentos...</div>
         ) : dados.length === 0 ? (
-          <div className="py-16 text-center text-xs text-gray-400 font-semibold">Nenhum lançamento localizado no período selecionado.</div>
+          <div className="py-16 text-center text-xs text-gray-400 font-semibold">Nenhum lançamento localizado com os filtros selecionados.</div>
         ) : (
           <div>
             <table className="w-full text-left border-collapse text-[11px]">
