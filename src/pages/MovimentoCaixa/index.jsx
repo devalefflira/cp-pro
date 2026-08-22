@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { LayoutDashboard, PlusCircle, ListFilter, FileText, Landmark } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, ListFilter, FileText, Landmark, Banknote } from 'lucide-react';
 import DashboardTab from './DashboardTab';
 import NovoLancamentoTab from './NovoLancamentoTab';
 import ListagemTab from './ListagemTab';
 import RelatoriosTab from './RelatoriosTab';
 import DepositosBancariosTab from './DepositosBancariosTab';
+import RetiradasTab from './RetiradasTab';
 
 export default function MovimentoCaixaIndex() {
   const [abaAtiva, setAbaAtiva] = useState('listagem');
@@ -14,7 +15,7 @@ export default function MovimentoCaixaIndex() {
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-6 rounded-xl border shadow-sm">
         <div>
           <h1 className="text-2xl font-black text-gray-800">Movimento Caixa Geral</h1>
-          <p className="text-xs text-gray-500 font-medium">Controle de entradas, saídas diárias e depósitos da tesouraria.</p>
+          <p className="text-xs text-gray-500 font-medium">Controle de entradas, saídas diárias, depósitos e comprovantes de retirada.</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -55,6 +56,15 @@ export default function MovimentoCaixaIndex() {
           </button>
 
           <button
+            onClick={() => setAbaAtiva('retiradas')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${
+              abaAtiva === 'retiradas' ? 'bg-emerald-700 text-white shadow-sm' : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+            }`}
+          >
+            <Banknote size={16} /> Retiradas
+          </button>
+
+          <button
             onClick={() => setAbaAtiva('relatorios')}
             className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors ${
               abaAtiva === 'relatorios' ? 'bg-[#0f172a] text-white shadow-sm' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -70,6 +80,7 @@ export default function MovimentoCaixaIndex() {
         {abaAtiva === 'novo' && <NovoLancamentoTab />}
         {abaAtiva === 'listagem' && <ListagemTab />}
         {abaAtiva === 'depositos' && <DepositosBancariosTab />}
+        {abaAtiva === 'retiradas' && <RetiradasTab />}
         {abaAtiva === 'relatorios' && <RelatoriosTab />}
       </div>
     </div>
