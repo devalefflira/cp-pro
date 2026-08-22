@@ -167,19 +167,36 @@ export default function UsuariosAdmin() {
 
     const handleSalvarPermissoes = async () => {
         setLoading(true);
-        for (const perm of permissoesLocais) {
-            await supabase.from('permissoes_usuario').upsert({
-                user_id: usuarioEdicaoPermissao.id,
-                modulo: perm.modulo,
-                pode_visualizar: perm.pode_visualizar,
-                pode_inserir_editar: perm.pode_inserir_editar,
-                pode_excluir: perm.pode_excluir
-            }, { onConflict: 'user_id,modulo' });
-        }
 
-        alert("Permissões salvas!");
-        setUsuarioEdicaoPermissao(null);
-        setLoading(false);
+        try {
+            // 1. Remove as permissões antigas do usuário
+            await supabase
+                .from('permissoes_usuario')
+                .delete()
+                .eq('user_id', usuarioEdicaoPermissao.id);
+
+            // 2. Insere todas as permissões atualizadas de uma só vez
+            const payloadPermissoes = permissoesLocais.map(p => ({
+                user_id: usuarioEdicaoPermissao.id,
+                modulo: p.modulo,
+                pode_visualizar: !!p.pode_visualizar,
+                pode_inserir_editar: !!p.pode_inserir_editar,
+                pode_excluir: !!p.pode_excluir
+            }));
+
+            const { error } = await supabase
+                .from('permissoes_usuario')
+                .insert(payloadPermissoes);
+
+            if (error) throw error;
+
+            alert("Permissões salvas com sucesso!");
+            setUsuarioEdicaoPermissao(null);
+        } catch (err) {
+            alert("Erro ao salvar permissões: " + err.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleExcluirUsuario = async (u) => {
