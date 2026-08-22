@@ -13,6 +13,7 @@ export default function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [userRole, setUserRole] = useState('user');
   const [userEmail, setUserEmail] = useState('');
+  const [permissoesUsuario, setPermissoesUsuario] = useState({});
 
   useEffect(() => {
     carregarPerfil();
@@ -22,8 +23,27 @@ export default function Sidebar() {
     const { data: { session } } = await supabase.auth.getSession();
     if (session) {
       setUserEmail(session.user.email);
-      const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
-      setUserRole(data?.role || 'user');
+      
+      const { data: prof } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
+      const role = prof?.role || 'user';
+      setUserRole(role);
+
+      // Se for o administrador principal, tem acesso irrestrito
+      if (session.user.email === 'admin@cppro.com' || role === 'admin') {
+        return;
+      }
+
+      // Busca permissões granulares para usuários e gestores
+      const { data: perms } = await supabase
+        .from('permissoes_usuario')
+        .select('modulo, pode_visualizar')
+        .eq('user_id', session.user.id);
+
+      const mapa = {};
+      (perms || []).forEach(p => {
+        mapa[p.modulo] = p.pode_visualizar;
+      });
+      setPermissoesUsuario(mapa);
     }
   };
 
@@ -43,15 +63,15 @@ export default function Sidebar() {
   };
 
   const menuItems = [
-    { path: '/contas-a-pagar', label: 'Contas a Pagar', icon: LayoutDashboard, roles: ['admin', 'gestor', 'user'] },
-    { path: '/movimento-caixa', label: 'Movimento Caixa', icon: CircleDollarSign, roles: ['admin', 'gestor', 'user'] },
-    { path: '/despesas', label: 'Despesas', icon: Wallet, roles: ['admin', 'gestor', 'user'] },
-    { path: '/conciliacao', label: 'Conciliação Bancária', icon: ArrowLeftRight, roles: ['admin', 'gestor'] },
-    { path: '/usuarios', label: 'Gestão de Usuários', icon: Users, roles: ['admin'] },
-    { path: '/relatorios', label: 'Relatórios Gerenciais', icon: FileText, roles: ['admin', 'gestor'] },
-    { path: '/tarefas', label: 'Tarefas', icon: CheckSquare, roles: ['admin', 'gestor', 'user'] },
-    { path: '/calculadoras', label: 'Calculadoras', icon: Calculator, roles: ['admin', 'gestor', 'user'] },
-    { path: '/grupos', label: 'Cadastros Auxiliares', icon: Settings, roles: ['admin', 'gestor', 'user'] },
+    { path: '/contas-a-pagar', label: 'Contas a Pagar', icon: LayoutDashboard, moduloId: 'cp_listagem', roles: ['admin', 'gestor', 'user'] },
+    { path: '/movimento-caixa', label: 'Movimento Caixa', icon: CircleDollarSign, moduloId: 'movimento_caixa', roles: ['admin', 'gestor'] },
+    { path: '/despesas', label: 'Despesas', icon: Wallet, moduloId: 'despesas_listagem', roles: ['admin', 'gestor', 'user'] },
+    { path: '/conciliacao', label: 'Conciliação Bancária', icon: ArrowLeftRight, moduloId: 'conciliacao', roles: ['admin', 'gestor'] },
+    { path: '/usuarios', label: 'Gestão de Usuários', icon: Users, moduloId: 'usuarios', roles: ['admin'] },
+    { path: '/relatorios', label: 'Relatórios Gerenciais', icon: FileText, moduloId: 'relatorios_gerenciais', roles: ['admin', 'gestor'] },
+    { path: '/tarefas', label: 'Tarefas', icon: CheckSquare, moduloId: 'tarefas', roles: ['admin', 'gestor', 'user'] },
+    { path: '/calculadoras', label: 'Calculadoras', icon: Calculator, moduloId: 'calculadoras', roles: ['admin', 'gestor', 'user'] },
+    { path: '/grupos', label: 'Cadastros Auxiliares', icon: Settings, moduloId: 'grupos', roles: ['admin', 'gestor', 'user'] },
   ];
 
   return (
@@ -77,7 +97,13 @@ export default function Sidebar() {
 
         <nav className="space-y-1">
           {menuItems.map((item) => {
-            if (userEmail !== 'admin@cppro.com' && !item.roles.includes(userRole)) return null;
+            const isAdmin = userEmail === 'admin@cppro.com' || userRole === 'admin';
+            
+            // Se não for admin, valida tanto o papel quanto a matriz granular
+            if (!isAdmin) {
+              if (!item.roles.includes(userRole)) return null;
+              if (item.moduloId && permissoesUsuario[item.moduloId] === false) return null;
+            }
 
             const Icon = item.icon;
             const active = isActive(item.path);

@@ -10,9 +10,9 @@ export default function NovoLancamentoTab() {
   const [responsavelNome, setResponsavelNome] = useState('');
   const [dataHoraAtual, setDataHoraAtual] = useState('');
 
-  // Formulário Individual
+  // Formulário Individual (Data Operação começa vazia)
   const [formIndividual, setFormIndividual] = useState({
-    data_operacao: new Date().toISOString().split('T')[0],
+    data_operacao: '',
     tipo_documento: 'PIX',
     valor: '',
     forma_pagamento: 'PIX',
@@ -21,9 +21,9 @@ export default function NovoLancamentoTab() {
     descricao: ''
   });
 
-  // Formulário em Lote (Critérios Compartilhados)
+  // Formulário em Lote (Data Operação começa vazia)
   const [formLote, setFormLote] = useState({
-    data_operacao: new Date().toISOString().split('T')[0],
+    data_operacao: '',
     tipo_documento: 'PIX',
     forma_pagamento: 'PIX',
     banco_operador: 'Bradesco',
@@ -81,8 +81,11 @@ export default function NovoLancamentoTab() {
 
   const handleAdicionarValorLote = (e) => {
     if (e) e.preventDefault();
-    const valorFloat = parseValorParaFloat(valorInputLote);
+    if (!formLote.data_operacao) {
+      return alert("Por favor, preencha o campo Data Operação antes de adicionar os valores.");
+    }
 
+    const valorFloat = parseValorParaFloat(valorInputLote);
     if (valorFloat <= 0) return;
 
     setListaPreviaLote(prev => [
@@ -111,8 +114,10 @@ export default function NovoLancamentoTab() {
 
   const handleSubmitIndividual = async (e) => {
     e.preventDefault();
+    if (!formIndividual.data_operacao) {
+      return alert("Informe a Data da Operação.");
+    }
     const valorFloat = parseValorParaFloat(formIndividual.valor);
-
     if (valorFloat <= 0) {
       return alert("Informe um valor válido maior que zero.");
     }
@@ -140,7 +145,7 @@ export default function NovoLancamentoTab() {
       setSucesso(true);
       setMensagemSucesso("Lançamento individual salvo com sucesso!");
       setFormIndividual({
-        data_operacao: new Date().toISOString().split('T')[0],
+        data_operacao: '',
         tipo_documento: 'PIX',
         valor: '',
         forma_pagamento: 'PIX',
@@ -248,7 +253,13 @@ export default function NovoLancamentoTab() {
 
             <div>
               <label className="block font-bold text-gray-700 mb-1">Data Operação *</label>
-              <input type="date" required value={formIndividual.data_operacao} onChange={e => setFormIndividual({ ...formIndividual, data_operacao: e.target.value })} className="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold" />
+              <input 
+                type="date" 
+                required 
+                value={formIndividual.data_operacao} 
+                onChange={e => setFormIndividual({ ...formIndividual, data_operacao: e.target.value })} 
+                className="w-full p-2.5 border rounded-lg bg-gray-50 font-semibold" 
+              />
             </div>
 
             <div>
@@ -320,7 +331,7 @@ export default function NovoLancamentoTab() {
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <button type="button" onClick={() => setFormIndividual({ data_operacao: new Date().toISOString().split('T')[0], tipo_documento: 'PIX', valor: '', forma_pagamento: 'PIX', banco_operador: 'Bradesco', tipo_operacao: 'Entrada +', descricao: '' })} className="px-5 py-2.5 border rounded-lg text-gray-600 font-semibold hover:bg-gray-50">Cancelar</button>
+            <button type="button" onClick={() => setFormIndividual({ data_operacao: '', tipo_documento: 'PIX', valor: '', forma_pagamento: 'PIX', banco_operador: 'Bradesco', tipo_operacao: 'Entrada +', descricao: '' })} className="px-5 py-2.5 border rounded-lg text-gray-600 font-semibold hover:bg-gray-50">Cancelar</button>
             <button type="submit" disabled={loading} className="bg-primary hover:bg-blue-900 text-white font-bold py-2.5 px-8 rounded-lg shadow-md">{loading ? "Salvando..." : "Salvar Lançamento"}</button>
           </div>
         </form>
@@ -339,7 +350,13 @@ export default function NovoLancamentoTab() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               <div>
                 <label className="block font-bold text-gray-700 mb-1">Data Operação *</label>
-                <input type="date" required value={formLote.data_operacao} onChange={e => setFormLote({ ...formLote, data_operacao: e.target.value })} className="w-full p-2.5 border rounded-lg bg-white font-semibold" />
+                <input 
+                  type="date" 
+                  required 
+                  value={formLote.data_operacao} 
+                  onChange={e => setFormLote({ ...formLote, data_operacao: e.target.value })} 
+                  className="w-full p-2.5 border rounded-lg bg-white font-semibold" 
+                />
               </div>
 
               <div>
@@ -429,7 +446,7 @@ export default function NovoLancamentoTab() {
             </button>
           </form>
 
-          {/* TABELA DE PRÉVIA DOS LANÇAMENTOS ANTES DE SALVAR */}
+          {/* TABELA DE PRÉVIA */}
           <div className="space-y-3">
             <div className="flex justify-between items-center border-b pb-2">
               <h4 className="font-extrabold text-gray-800 text-xs uppercase tracking-wide flex items-center gap-1.5">
