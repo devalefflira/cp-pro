@@ -24,6 +24,7 @@ import UsuariosAdmin from './pages/UsuariosAdmin';
 import ContasPagar from './pages/ContasPagar';
 import MovimentoCaixa from './pages/MovimentoCaixa';
 import RelatorioMovimentoCaixaPrint from './pages/RelatorioMovimentoCaixaPrint';
+import RelatorioNumerariosPrint from './pages/RelatorioNumerariosPrint';
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
         <Route path="/print/despesas-fornecedor" element={<RelatorioDespesasFornecedorPrint />} />
         <Route path="/print/evolucao-conta" element={<RelatorioEvolucaoContaPrint />} />
         <Route path="/print/movimento-caixa" element={<RelatorioMovimentoCaixaPrint />} />
+        <Route path="/print/controle-numerarios" element={<RelatorioNumerariosPrint />} />
 
         {/* ROTAS DO SISTEMA (COM SIDEBAR) */}
         <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
