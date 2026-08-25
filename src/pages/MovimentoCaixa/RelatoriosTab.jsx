@@ -1,13 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../services/supabase';
-import { FileText, Search, Printer, CheckSquare, Square, ChevronDown, Clock } from 'lucide-react';
+import { FileText, Search, Printer, CheckSquare, Square, ChevronDown, Clock, Wallet, Landmark } from 'lucide-react';
 
 export default function RelatoriosTab() {
   const [tipoRelatorio, setTipoRelatorio] = useState('tipo_operacao');
+
+  // Filtros padrão (para relatórios convencionais)
+  const [tipoOperacaoFiltro, setTipoOperacaoFiltro] = useState('TODAS'); // 'TODAS', 'Entrada +', 'Saída -'
   const [dataInicio, setDataInicio] = useState('');
-  const [horaInicio, setHoraInicio] = useState('00:00');
   const [dataFim, setDataFim] = useState('');
-  const [horaFim, setHoraFim] = useState('23:59');
+
+  // Filtros Independentes: TESOURARIA (Sangrias)
+  const [dataInicioTesouraria, setDataInicioTesouraria] = useState('');
+  const [dataFimTesouraria, setDataFimTesouraria] = useState('');
+  const [horaInicioTesouraria, setHoraInicioTesouraria] = useState('00:00');
+  const [horaFimTesouraria, setHoraFimTesouraria] = useState('23:59');
+
+  // Filtros Independentes: DEPÓSITOS BANCÁRIOS
+  const [dataInicioDepositos, setDataInicioDepositos] = useState('');
+  const [dataFimDepositos, setDataFimDepositos] = useState('');
+  const [horaInicioDepositos, setHoraInicioDepositos] = useState('00:00');
+  const [horaFimDepositos, setHoraFimDepositos] = useState('23:59');
   
   const [dados, setDados] = useState([]);
   const [dadosSangrias, setDadosSangrias] = useState([]);
@@ -56,7 +69,6 @@ export default function RelatoriosTab() {
     }
   };
 
-  // Helper para normalizar data + hora em objeto Date comparável
   const montarTimestamp = (dataStr, dataHoraRegStr, created_at, horaManual) => {
     let hora = horaManual || '00:00';
     if (!horaManual && dataHoraRegStr && dataHoraRegStr.includes(',')) {
@@ -74,7 +86,6 @@ export default function RelatoriosTab() {
     setLoading(true);
 
     if (tipoRelatorio === 'numerarios') {
-      // 1. Busca Sangrias da Tesouraria em Dinheiro
       const { data: sangrias } = await supabase
         .from('movimento_caixa')
         .select('*')
@@ -84,26 +95,28 @@ export default function RelatoriosTab() {
         .eq('tipo_operacao', 'Saída -')
         .order('data_operacao', { ascending: true });
 
-      // 2. Busca Depósitos Bancários
       const { data: deps } = await supabase
         .from('depositos_bancarios')
         .select('*')
         .order('data_deposito', { ascending: true });
 
-      const dtInicioCorte = dataInicio ? new Date(`${dataInicio}T${horaInicio || '00:00'}:00`) : null;
-      const dtFimCorte = dataFim ? new Date(`${dataFim}T${horaFim || '23:59'}:59`) : null;
+      const dtInicioTes = dataInicioTesouraria ? new Date(`${dataInicioTesouraria}T${horaInicioTesouraria || '00:00'}:00`) : null;
+      const dtFimTes = dataFimTesouraria ? new Date(`${dataFimTesouraria}T${horaFimTesouraria || '23:59'}:59`) : null;
+
+      const dtInicioDep = dataInicioDepositos ? new Date(`${dataInicioDepositos}T${horaInicioDepositos || '00:00'}:00`) : null;
+      const dtFimDep = dataFimDepositos ? new Date(`${dataFimDepositos}T${horaFimDepositos || '23:59'}:59`) : null;
 
       const sangriasFiltradas = (sangrias || []).filter(s => {
         const timestampItem = montarTimestamp(s.data_operacao, s.data_lancamento, s.created_at);
-        if (dtInicioCorte && timestampItem < dtInicioCorte) return false;
-        if (dtFimCorte && timestampItem > dtFimCorte) return false;
+        if (dtInicioTes && timestampItem < dtInicioTes) return false;
+        if (dtFimTes && timestampItem > dtFimTes) return false;
         return true;
       });
 
       const depsFiltrados = (deps || []).filter(d => {
         const timestampItem = montarTimestamp(d.data_operacao || d.data_deposito, null, d.created_at, d.hora_operacao);
-        if (dtInicioCorte && timestampItem < dtInicioCorte) return false;
-        if (dtFimCorte && timestampItem > dtFimCorte) return false;
+        if (dtInicioDep && timestampItem < dtInicioDep) return false;
+        if (dtFimDep && timestampItem > dtFimDep) return false;
         return true;
       });
 
@@ -114,6 +127,11 @@ export default function RelatoriosTab() {
 
       if (dataInicio) query = query.gte('data_operacao', dataInicio);
       if (dataFim) query = query.lte('data_operacao', dataFim);
+
+      // Filtro de Tipo de Operação
+      if (tipoRelatorio !== 'tipo_operacao' && tipoOperacaoFiltro !== 'TODAS') {
+        query = query.eq('tipo_operacao', tipoOperacaoFiltro);
+      }
 
       if (itensSelecionados.length > 0) {
         if (tipoRelatorio === 'tipo_operacao') query = query.in('tipo_operacao', itensSelecionados);
@@ -131,15 +149,26 @@ export default function RelatoriosTab() {
 
   const handleAbrirImpressao = () => {
     const params = new URLSearchParams();
-    if (tipoRelatorio) params.append('tipo', tipoRelatorio);
-    if (dataInicio) params.append('inicio', dataInicio);
-    if (dataFim) params.append('fim', dataFim);
-    if (horaInicio) params.append('horaInicio', horaInicio);
-    if (horaFim) params.append('horaFim', horaFim);
+    params.append('tipo', tipoRelatorio);
 
     if (tipoRelatorio === 'numerarios') {
+      if (dataInicioTesouraria) params.append('dtIniTes', dataInicioTesouraria);
+      if (dataFimTesouraria) params.append('dtFimTes', dataFimTesouraria);
+      if (horaInicioTesouraria) params.append('hrIniTes', horaInicioTesouraria);
+      if (horaFimTesouraria) params.append('hrFimTes', horaFimTesouraria);
+
+      if (dataInicioDepositos) params.append('dtIniDep', dataInicioDepositos);
+      if (dataFimDepositos) params.append('dtFimDep', dataFimDepositos);
+      if (horaInicioDepositos) params.append('hrIniDep', horaInicioDepositos);
+      if (horaFimDepositos) params.append('hrFimDep', horaFimDepositos);
+
       window.open(`/print/controle-numerarios?${params.toString()}`, '_blank');
     } else {
+      if (dataInicio) params.append('inicio', dataInicio);
+      if (dataFim) params.append('fim', dataFim);
+      if (tipoRelatorio !== 'tipo_operacao' && tipoOperacaoFiltro !== 'TODAS') {
+        params.append('tipoOp', tipoOperacaoFiltro);
+      }
       if (itensSelecionados.length > 0) params.append('itens', itensSelecionados.join(','));
       window.open(`/print/movimento-caixa?${params.toString()}`, '_blank');
     }
@@ -169,15 +198,14 @@ export default function RelatoriosTab() {
         )}
       </div>
 
-      {/* FILTROS COM DATA E HORA DE INÍCIO / FIM */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end text-xs">
-        
-        <div className={tipoRelatorio === 'numerarios' ? 'md:col-span-4' : 'md:col-span-4'}>
-          <label className="block font-bold text-gray-500 uppercase mb-1">Tipo de Relatório</label>
+      {/* SELETOR PRINCIPAL DE TIPO DE RELATÓRIO */}
+      <div className="space-y-4 text-xs">
+        <div>
+          <label className="block font-bold text-gray-700 uppercase mb-1">Tipo de Relatório</label>
           <select 
             value={tipoRelatorio} 
-            onChange={e => setTipoRelatorio(e.target.value)} 
-            className="w-full p-2.5 border rounded-lg bg-white font-bold text-gray-800"
+            onChange={e => { setTipoRelatorio(e.target.value); setGerado(false); }} 
+            className="w-full md:w-96 p-2.5 border rounded-lg bg-white font-bold text-gray-800 shadow-sm"
           >
             <option value="tipo_operacao">Por Tipo Operação</option>
             <option value="forma_pagamento">Por Forma de Pagamento</option>
@@ -186,103 +214,192 @@ export default function RelatoriosTab() {
           </select>
         </div>
 
-        {/* MULTI-SELEÇÃO PARA RELATÓRIOS CONVENCIONAIS */}
-        {tipoRelatorio !== 'numerarios' && (
-          <div className="md:col-span-4 relative" ref={dropdownRef}>
-            <label className="block font-bold text-gray-500 uppercase mb-1">
-              Filtro de Itens ({itensSelecionados.length}/{opcoes.length})
-            </label>
-            <button
-              type="button"
-              onClick={() => setDropdownAberto(!dropdownAberto)}
-              className="w-full p-2.5 border rounded-lg bg-white font-semibold text-left flex justify-between items-center"
-            >
-              <span className="truncate text-gray-800">
-                {itensSelecionados.length === opcoes.length 
-                  ? 'Todos Selecionados' 
-                  : itensSelecionados.length === 0 
-                    ? 'Nenhum selecionado' 
-                    : `${itensSelecionados.length} selecionado(s)`}
-              </span>
-              <ChevronDown size={14} className="text-gray-400" />
-            </button>
+        {/* 1. SEÇÃO DE FILTROS PARA RELATÓRIOS CONVENCIONAIS */}
+        {tipoRelatorio !== 'numerarios' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 items-end pt-2">
+            <div className="relative" ref={dropdownRef}>
+              <label className="block font-bold text-gray-500 uppercase mb-1">
+                Filtro de Itens ({itensSelecionados.length}/{opcoes.length})
+              </label>
+              <button
+                type="button"
+                onClick={() => setDropdownAberto(!dropdownAberto)}
+                className="w-full p-2.5 border rounded-lg bg-white font-semibold text-left flex justify-between items-center"
+              >
+                <span className="truncate text-gray-800">
+                  {itensSelecionados.length === opcoes.length 
+                    ? 'Todos Selecionados' 
+                    : itensSelecionados.length === 0 
+                      ? 'Nenhum selecionado' 
+                      : `${itensSelecionados.length} selecionado(s)`}
+                </span>
+                <ChevronDown size={14} className="text-gray-400" />
+              </button>
 
-            {dropdownAberto && (
-              <div className="absolute left-0 right-0 mt-1 bg-white border rounded-xl shadow-xl z-50 p-2 space-y-1 max-h-60 overflow-y-auto">
-                <button
-                  type="button"
-                  onClick={handleSelecionarTodos}
-                  className="w-full text-left p-1.5 rounded-lg hover:bg-gray-50 text-indigo-900 font-black flex items-center gap-2 border-b pb-2 mb-1"
+              {dropdownAberto && (
+                <div className="absolute left-0 right-0 mt-1 bg-white border rounded-xl shadow-xl z-50 p-2 space-y-1 max-h-60 overflow-y-auto">
+                  <button
+                    type="button"
+                    onClick={handleSelecionarTodos}
+                    className="w-full text-left p-1.5 rounded-lg hover:bg-gray-50 text-indigo-900 font-black flex items-center gap-2 border-b pb-2 mb-1"
+                  >
+                    {itensSelecionados.length === opcoes.length ? <CheckSquare size={16} className="text-indigo-600"/> : <Square size={16} className="text-gray-400"/>}
+                    <span>Selecionar Todos / Limpar</span>
+                  </button>
+                  {opcoes.map(opcao => (
+                    <label key={opcao} onClick={() => handleToggleItem(opcao)} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-50 cursor-pointer font-semibold text-gray-700">
+                      <input type="checkbox" checked={itensSelecionados.includes(opcao)} onChange={() => {}} className="w-4 h-4 text-indigo-600 rounded" />
+                      <span>{opcao}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* NOVO CAMPO: TIPO DE OPERAÇÃO */}
+            {tipoRelatorio !== 'tipo_operacao' && (
+              <div>
+                <label className="block font-bold text-gray-500 uppercase mb-1">Tipo de Operação</label>
+                <select 
+                  value={tipoOperacaoFiltro} 
+                  onChange={e => setTipoOperacaoFiltro(e.target.value)} 
+                  className="w-full p-2.5 border rounded-lg bg-white font-bold text-gray-800"
                 >
-                  {itensSelecionados.length === opcoes.length ? <CheckSquare size={16} className="text-indigo-600"/> : <Square size={16} className="text-gray-400"/>}
-                  <span>Selecionar Todos / Limpar</span>
-                </button>
-                {opcoes.map(opcao => (
-                  <label key={opcao} onClick={() => handleToggleItem(opcao)} className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-50 cursor-pointer font-semibold text-gray-700">
-                    <input type="checkbox" checked={itensSelecionados.includes(opcao)} onChange={() => {}} className="w-4 h-4 text-indigo-600 rounded" />
-                    <span>{opcao}</span>
-                  </label>
-                ))}
+                  <option value="TODAS">Todas (Entradas e Saídas)</option>
+                  <option value="Entrada +" className="text-emerald-700 font-bold">Entradas (+)</option>
+                  <option value="Saída -" className="text-red-700 font-bold">Saídas (-)</option>
+                </select>
               </div>
             )}
+
+            <div>
+              <label className="block font-bold text-gray-500 uppercase mb-1">Data Início</label>
+              <input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} className="w-full p-2.5 border rounded-lg bg-gray-50" />
+            </div>
+
+            <div>
+              <label className="block font-bold text-gray-500 uppercase mb-1">Data Fim</label>
+              <input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} className="w-full p-2.5 border rounded-lg bg-gray-50" />
+            </div>
+
+            <div>
+              <button 
+                onClick={gerarRelatorio} 
+                disabled={loading} 
+                className="w-full bg-primary hover:bg-blue-900 text-white font-bold py-2.5 px-6 rounded-lg shadow text-xs flex items-center justify-center gap-2"
+              >
+                <Search size={14} /> {loading ? "Gerando..." : "Gerar Relatório"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* 2. SEÇÃO DE FILTROS SEPARADOS: TESOURARIA X DEPÓSITOS */
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* BLOCO DE FILTROS DA TESOURARIA */}
+              <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-200 space-y-3">
+                <h4 className="font-extrabold text-xs uppercase text-emerald-900 flex items-center gap-1.5">
+                  <Wallet size={16} className="text-emerald-700" /> Tesouraria (Sangrias em Dinheiro)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-gray-600 mb-1">Data Inicial</label>
+                    <input 
+                      type="date" 
+                      value={dataInicioTesouraria} 
+                      onChange={e => setDataInicioTesouraria(e.target.value)} 
+                      className="w-full p-2 border rounded-lg bg-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-600 mb-1">Hora Inicial</label>
+                    <input 
+                      type="time" 
+                      value={horaInicioTesouraria} 
+                      onChange={e => setHoraInicioTesouraria(e.target.value)} 
+                      className="w-full p-2 border rounded-lg bg-white font-semibold text-emerald-950" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-600 mb-1">Data Final</label>
+                    <input 
+                      type="date" 
+                      value={dataFimTesouraria} 
+                      onChange={e => setDataFimTesouraria(e.target.value)} 
+                      className="w-full p-2 border rounded-lg bg-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-600 mb-1">Hora Final</label>
+                    <input 
+                      type="time" 
+                      value={horaFimTesouraria} 
+                      onChange={e => setHoraFimTesouraria(e.target.value)} 
+                      className="w-full p-2 border rounded-lg bg-white font-semibold text-emerald-950" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* BLOCO DE FILTROS DOS DEPÓSITOS BANCÁRIOS */}
+              <div className="bg-indigo-50/60 p-4 rounded-xl border border-indigo-200 space-y-3">
+                <h4 className="font-extrabold text-xs uppercase text-indigo-950 flex items-center gap-1.5">
+                  <Landmark size={16} className="text-indigo-700" /> Depósitos Bancários (Operação no Banco)
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-gray-600 mb-1">Data Inicial</label>
+                    <input 
+                      type="date" 
+                      value={dataInicioDepositos} 
+                      onChange={e => setDataInicioDepositos(e.target.value)} 
+                      className="w-full p-2 border rounded-lg bg-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-600 mb-1">Hora Inicial</label>
+                    <input 
+                      type="time" 
+                      value={horaInicioDepositos} 
+                      onChange={e => setHoraInicioDepositos(e.target.value)} 
+                      className="w-full p-2 border rounded-lg bg-white font-semibold text-indigo-950" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-600 mb-1">Data Final</label>
+                    <input 
+                      type="date" 
+                      value={dataFimDepositos} 
+                      onChange={e => setDataFimDepositos(e.target.value)} 
+                      className="w-full p-2 border rounded-lg bg-white" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold text-gray-600 mb-1">Hora Final</label>
+                    <input 
+                      type="time" 
+                      value={horaFimDepositos} 
+                      onChange={e => setHoraFimDepositos(e.target.value)} 
+                      className="w-full p-2 border rounded-lg bg-white font-semibold text-indigo-950" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button 
+                onClick={gerarRelatorio} 
+                disabled={loading} 
+                className="bg-primary hover:bg-blue-900 text-white font-bold py-2.5 px-10 rounded-lg shadow text-xs flex items-center gap-2"
+              >
+                <Search size={14} /> {loading ? "Processando..." : "Gerar Relatório de Numerários"}
+              </button>
+            </div>
           </div>
         )}
-
-        {/* BLOCO INÍCIO: DATA + HORA */}
-        <div className={tipoRelatorio === 'numerarios' ? 'md:col-span-4' : 'md:col-span-2'}>
-          <label className="block font-bold text-gray-500 uppercase mb-1">
-            {tipoRelatorio === 'numerarios' ? 'Início (Data e Hora)' : 'Data Início'}
-          </label>
-          <div className="flex gap-1.5">
-            <input 
-              type="date" 
-              value={dataInicio} 
-              onChange={e => setDataInicio(e.target.value)} 
-              className="w-full p-2.5 border rounded-lg bg-gray-50" 
-            />
-            {tipoRelatorio === 'numerarios' && (
-              <input 
-                type="time" 
-                value={horaInicio} 
-                onChange={e => setHoraInicio(e.target.value)} 
-                className="w-28 p-2.5 border rounded-lg bg-gray-50 font-semibold text-indigo-900" 
-              />
-            )}
-          </div>
-        </div>
-
-        {/* BLOCO FIM: DATA + HORA */}
-        <div className={tipoRelatorio === 'numerarios' ? 'md:col-span-4' : 'md:col-span-2'}>
-          <label className="block font-bold text-gray-500 uppercase mb-1">
-            {tipoRelatorio === 'numerarios' ? 'Fim (Data e Hora)' : 'Data Fim'}
-          </label>
-          <div className="flex gap-1.5">
-            <input 
-              type="date" 
-              value={dataFim} 
-              onChange={e => setDataFim(e.target.value)} 
-              className="w-full p-2.5 border rounded-lg bg-gray-50" 
-            />
-            {tipoRelatorio === 'numerarios' && (
-              <input 
-                type="time" 
-                value={horaFim} 
-                onChange={e => setHoraFim(e.target.value)} 
-                className="w-28 p-2.5 border rounded-lg bg-gray-50 font-semibold text-indigo-900" 
-              />
-            )}
-          </div>
-        </div>
-
-        <div className="md:col-span-12 flex justify-end pt-2">
-          <button 
-            onClick={gerarRelatorio} 
-            disabled={loading} 
-            className="bg-primary hover:bg-blue-900 text-white font-bold py-2.5 px-8 rounded-lg shadow text-xs flex items-center justify-center gap-2"
-          >
-            <Search size={14} /> {loading ? "Gerando..." : "Gerar Relatório"}
-          </button>
-        </div>
       </div>
 
       {/* PRÉ-VISUALIZAÇÃO DOS RESULTADOS */}
@@ -310,7 +427,7 @@ export default function RelatoriosTab() {
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {dadosSangrias.length === 0 ? (
-                        <tr><td colSpan="3" className="p-4 text-center text-gray-400 italic">Nenhum registro dentro da janela de data/hora.</td></tr>
+                        <tr><td colSpan="3" className="p-4 text-center text-gray-400 italic">Nenhum registro dentro da janela de data/hora informada.</td></tr>
                       ) : (
                         dadosSangrias.map(s => (
                           <tr key={s.id} className="hover:bg-white">
@@ -347,7 +464,7 @@ export default function RelatoriosTab() {
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {dadosDepositos.length === 0 ? (
-                        <tr><td colSpan="4" className="p-4 text-center text-gray-400 italic">Nenhum registro dentro da janela de data/hora.</td></tr>
+                        <tr><td colSpan="4" className="p-4 text-center text-gray-400 italic">Nenhum registro dentro da janela de data/hora informada.</td></tr>
                       ) : (
                         dadosDepositos.map(d => (
                           <tr key={d.id} className="hover:bg-white">
@@ -401,7 +518,7 @@ export default function RelatoriosTab() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {dados.length === 0 ? (
-                  <tr><td colSpan="9" className="p-6 text-center text-gray-400 italic">Nenhum registro encontrado.</td></tr>
+                  <tr><td colSpan="9" className="p-6 text-center text-gray-400 italic">Nenhum registro encontrado para os filtros selecionados.</td></tr>
                 ) : (
                   dados.map(r => (
                     <tr key={r.id} className="hover:bg-gray-50">

@@ -12,13 +12,14 @@ export default function RelatorioMovimentoCaixaPrint() {
   const inicio = searchParams.get('inicio');
   const fim = searchParams.get('fim');
   const itensParam = searchParams.get('itens');
+  const tipoOpParam = searchParams.get('tipoOp');
 
   const [dados, setDados] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     carregarDados();
-  }, [tipoRelatorio, inicio, fim, itensParam]);
+  }, [tipoRelatorio, inicio, fim, itensParam, tipoOpParam]);
 
   const carregarDados = async () => {
     setLoading(true);
@@ -26,6 +27,11 @@ export default function RelatorioMovimentoCaixaPrint() {
 
     if (inicio) query = query.gte('data_operacao', inicio);
     if (fim) query = query.lte('data_operacao', fim);
+
+    // Filtro por Tipo de Operação
+    if (tipoOpParam && tipoOpParam !== 'TODAS') {
+      query = query.eq('tipo_operacao', tipoOpParam);
+    }
 
     // Filtro de itens selecionados
     if (itensParam) {
@@ -80,25 +86,23 @@ export default function RelatorioMovimentoCaixaPrint() {
     return 'Movimento Caixa Geral - Por Tipo de Operação';
   };
 
-  // GERAÇÃO DIRETA DO PDF EM MODO PAISAGEM (A4 LANDSCAPE)
   const gerarPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const dataHoraGeracao = new Date().toLocaleString('pt-BR');
     const periodoStr = `${inicio ? formatarData(inicio) : 'Início'} até ${fim ? formatarData(fim) : 'Hoje'}`;
-    const filtroStr = itensParam ? `Filtro: ${itensParam}` : 'Filtro: Todos';
+    const filtroStr = itensParam ? `Itens: ${itensParam}` : 'Itens: Todos';
+    const opStr = tipoOpParam ? ` | Operação: ${tipoOpParam}` : '';
 
-    // Título e Cabeçalho
     doc.setFontSize(15);
     doc.setTextColor(0, 51, 102);
     doc.text(getTituloRelatorio(), 14, 14);
 
     doc.setFontSize(8.5);
     doc.setTextColor(100);
-    doc.text(`Período: ${periodoStr} | ${filtroStr}`, 14, 19);
+    doc.text(`Período: ${periodoStr} | ${filtroStr}${opStr}`, 14, 19);
     doc.text(`Emissão: ${dataHoraGeracao}`, doc.internal.pageSize.width - 14, 14, { align: 'right' });
     doc.text("CP PRO • Gestão Financeira", doc.internal.pageSize.width - 14, 19, { align: 'right' });
 
-    // 1. Tabela Principal de Lançamentos
     const corpoTabela = dados.map(r => [
       formatarData(r.data_operacao),
       r.responsavel || '-',
@@ -148,7 +152,6 @@ export default function RelatorioMovimentoCaixaPrint() {
       }
     });
 
-    // 2. Tabela de Totalizadores por Forma de Pagamento e Totais Gerais
     let finalY = doc.lastAutoTable.finalY + 8;
     if (finalY + 45 > doc.internal.pageSize.height) {
       doc.addPage();
@@ -163,7 +166,6 @@ export default function RelatorioMovimentoCaixaPrint() {
       formatarMoeda(valores.saldo)
     ]);
 
-    // Linha de Total Geral
     corpoTotaisForma.push([
       'TOTAL GERAL',
       `${dados.length} lançamento(s)`,
@@ -258,6 +260,7 @@ export default function RelatorioMovimentoCaixaPrint() {
             <p className="text-xs text-gray-500 font-semibold mt-1">
               Período: <strong>{inicio ? formatarData(inicio) : 'Início'}</strong> até <strong>{fim ? formatarData(fim) : 'Hoje'}</strong>
               {itensParam && <span className="ml-2 font-normal text-gray-400">| Filtro: <strong className="text-gray-700">{itensParam}</strong></span>}
+              {tipoOpParam && <span className="ml-2 font-normal text-gray-400">| Operação: <strong className="text-gray-700">{tipoOpParam}</strong></span>}
             </p>
           </div>
           <div className="text-right text-[11px] text-gray-500 space-y-0.5">
@@ -310,10 +313,9 @@ export default function RelatorioMovimentoCaixaPrint() {
               </tbody>
             </table>
 
-            {/* SEÇÃO DE TOTALIZADORES: FORMA DE PAGAMENTO + TOTAIS GERAIS */}
+            {/* SEÇÃO DE TOTALIZADORES */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start pt-2">
               
-              {/* TABELA DE TOTALIZADOR POR FORMA DE PAGAMENTO */}
               <div className="md:col-span-7 bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
                 <h4 className="font-bold text-xs uppercase text-gray-800 flex items-center gap-1.5 border-b pb-2">
                   <CreditCard size={15} className="text-[#003366]" /> Totalizador por Forma de Pagamento
@@ -346,7 +348,6 @@ export default function RelatorioMovimentoCaixaPrint() {
                 </div>
               </div>
 
-              {/* QUADRO DE RESUMO GERAL */}
               <div className="md:col-span-5 bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-2 text-xs">
                 <h4 className="font-bold text-xs uppercase text-gray-800 border-b pb-2">Resumo Geral do Período</h4>
                 <div className="flex justify-between text-gray-700 font-semibold pt-1">

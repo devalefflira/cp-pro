@@ -8,10 +8,18 @@ import { Printer, FileDown, ArrowLeft } from 'lucide-react';
 export default function RelatorioNumerariosPrint() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const inicio = searchParams.get('inicio');
-  const fim = searchParams.get('fim');
-  const horaInicio = searchParams.get('horaInicio') || '00:00';
-  const horaFim = searchParams.get('horaFim') || '23:59';
+
+  // Parâmetros de Tesouraria
+  const dtIniTes = searchParams.get('dtIniTes');
+  const dtFimTes = searchParams.get('dtFimTes');
+  const hrIniTes = searchParams.get('hrIniTes') || '00:00';
+  const hrFimTes = searchParams.get('hrFimTes') || '23:59';
+
+  // Parâmetros de Depósitos Bancários
+  const dtIniDep = searchParams.get('dtIniDep');
+  const dtFimDep = searchParams.get('dtFimDep');
+  const hrIniDep = searchParams.get('hrIniDep') || '00:00';
+  const hrFimDep = searchParams.get('hrFimDep') || '23:59';
 
   const [sangrias, setSangrias] = useState([]);
   const [depositos, setDepositos] = useState([]);
@@ -19,7 +27,7 @@ export default function RelatorioNumerariosPrint() {
 
   useEffect(() => {
     carregarDados();
-  }, [inicio, fim, horaInicio, horaFim]);
+  }, [dtIniTes, dtFimTes, hrIniTes, hrFimTes, dtIniDep, dtFimDep, hrIniDep, hrFimDep]);
 
   const montarTimestamp = (dataStr, dataHoraRegStr, created_at, horaManual) => {
     let hora = horaManual || '00:00';
@@ -51,20 +59,23 @@ export default function RelatorioNumerariosPrint() {
       .select('*')
       .order('data_deposito', { ascending: true });
 
-    const dtInicioCorte = inicio ? new Date(`${inicio}T${horaInicio}:00`) : null;
-    const dtFimCorte = fim ? new Date(`${fim}T${horaFim}:59`) : null;
+    const corteIniTes = dtIniTes ? new Date(`${dtIniTes}T${hrIniTes}:00`) : null;
+    const corteFimTes = dtFimTes ? new Date(`${dtFimTes}T${hrFimTes}:59`) : null;
+
+    const corteIniDep = dtIniDep ? new Date(`${dtIniDep}T${hrIniDep}:00`) : null;
+    const corteFimDep = dtFimDep ? new Date(`${dtFimDep}T${hrFimDep}:59`) : null;
 
     const sangriasFiltradas = (listaS || []).filter(s => {
       const timestampItem = montarTimestamp(s.data_operacao, s.data_lancamento, s.created_at);
-      if (dtInicioCorte && timestampItem < dtInicioCorte) return false;
-      if (dtFimCorte && timestampItem > dtFimCorte) return false;
+      if (corteIniTes && timestampItem < corteIniTes) return false;
+      if (corteFimTes && timestampItem > corteFimTes) return false;
       return true;
     });
 
     const depsFiltrados = (listaD || []).filter(d => {
       const timestampItem = montarTimestamp(d.data_operacao || d.data_deposito, null, d.created_at, d.hora_operacao);
-      if (dtInicioCorte && timestampItem < dtInicioCorte) return false;
-      if (dtFimCorte && timestampItem > dtFimCorte) return false;
+      if (corteIniDep && timestampItem < corteIniDep) return false;
+      if (corteFimDep && timestampItem > corteFimDep) return false;
       return true;
     });
 
@@ -80,25 +91,32 @@ export default function RelatorioNumerariosPrint() {
   const totalDepositos = depositos.reduce((acc, c) => acc + Number(c.valor_depositado || 0), 0);
   const saldoDiferenca = totalSangrias - totalDepositos;
 
-  const getJanelaTexto = () => {
-    const inicioStr = inicio ? `${formatarData(inicio)} às ${horaInicio}` : 'Início';
-    const fimStr = fim ? `${formatarData(fim)} às ${horaFim}` : 'Hoje';
-    return `${inicioStr} até ${fimStr}`;
+  const getTextoJanelaTesouraria = () => {
+    const ini = dtIniTes ? `${formatarData(dtIniTes)} às ${hrIniTes}` : 'Início';
+    const fim = dtFimTes ? `${formatarData(dtFimTes)} às ${hrFimTes}` : 'Hoje';
+    return `${ini} até ${fim}`;
+  };
+
+  const getTextoJanelaDepositos = () => {
+    const ini = dtIniDep ? `${formatarData(dtIniDep)} às ${hrIniDep}` : 'Início';
+    const fim = dtFimDep ? `${formatarData(dtFimDep)} às ${hrFimDep}` : 'Hoje';
+    return `${ini} até ${fim}`;
   };
 
   const gerarPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const dataHoraGeracao = new Date().toLocaleString('pt-BR');
 
-    doc.setFontSize(14);
+    doc.setFontSize(13);
     doc.setTextColor(0, 51, 102);
-    doc.text("Controle de Numerários: Tesouraria x Depósitos Bancários", 14, 14);
+    doc.text("Controle de Numerários: Tesouraria x Depósitos Bancários", 14, 13);
 
-    doc.setFontSize(8.5);
-    doc.setTextColor(100);
-    doc.text(`Janela Operacional: ${getJanelaTexto()}`, 14, 19);
-    doc.text(`Emissão: ${dataHoraGeracao}`, doc.internal.pageSize.width - 14, 14, { align: 'right' });
-    doc.text("CP PRO • Gestão Financeira", doc.internal.pageSize.width - 14, 19, { align: 'right' });
+    doc.setFontSize(8);
+    doc.setTextColor(80);
+    doc.text(`Tesouraria: ${getTextoJanelaTesouraria()}`, 14, 18);
+    doc.text(`Depósitos: ${getTextoJanelaDepositos()}`, 14, 22);
+    doc.text(`Emissão: ${dataHoraGeracao}`, doc.internal.pageSize.width - 14, 13, { align: 'right' });
+    doc.text("CP PRO • Gestão Financeira", doc.internal.pageSize.width - 14, 18, { align: 'right' });
 
     const bodySangrias = sangrias.map(s => [
       `${formatarData(s.data_operacao)} ${s.data_lancamento?.includes(',') ? s.data_lancamento.split(',')[1]?.trim() : ''}`,
@@ -107,7 +125,7 @@ export default function RelatorioNumerariosPrint() {
     ]);
 
     autoTable(doc, {
-      startY: 23,
+      startY: 26,
       margin: { left: 14, right: doc.internal.pageSize.width / 2 + 3 },
       head: [['Data/Hora Op.', 'Responsável Caixa', 'Valor Sangria']],
       body: bodySangrias,
@@ -125,7 +143,7 @@ export default function RelatorioNumerariosPrint() {
     ]);
 
     autoTable(doc, {
-      startY: 23,
+      startY: 26,
       margin: { left: doc.internal.pageSize.width / 2 + 3, right: 14 },
       head: [['Data/Hora Op.', 'Banco/Conta', 'Depositante', 'Valor Depósito']],
       body: bodyDepositos,
@@ -137,7 +155,7 @@ export default function RelatorioNumerariosPrint() {
 
     const finalY = Math.max(doc.lastAutoTable.finalY, 110) + 6;
 
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(50);
     doc.text(`Total Entradas Tesouraria: ${formatarMoeda(totalSangrias)}`, 14, finalY);
     doc.text(`Total Depósitos Bancários: ${formatarMoeda(totalDepositos)}`, doc.internal.pageSize.width / 2 + 3, finalY);
@@ -147,7 +165,7 @@ export default function RelatorioNumerariosPrint() {
 
     doc.setDrawColor(200);
     doc.rect(14, finalY + 4, doc.internal.pageSize.width - 28, 16);
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(130);
     doc.text("Observações (Anotações manuais):", 16, finalY + 8);
 
@@ -220,13 +238,14 @@ export default function RelatorioNumerariosPrint() {
       {/* DOCUMENTO DO RELATÓRIO */}
       <div className="print-container max-w-6xl mx-auto bg-white p-6 rounded-xl border shadow-sm print:border-none print:shadow-none space-y-4">
         
-        {/* CABEÇALHO */}
+        {/* CABEÇALHO COM DETALHAMENTO DAS DUAS JANELAS */}
         <div className="flex justify-between items-start border-b pb-3">
           <div>
             <h1 className="text-lg font-black tracking-tight text-[#003366]">Controle de Numerários: Tesouraria x Depósitos Bancários</h1>
-            <p className="text-xs text-gray-500 font-semibold mt-0.5">
-              Janela de Fechamento: <strong>{getJanelaTexto()}</strong>
-            </p>
+            <div className="text-[11px] text-gray-600 font-medium space-y-0.5 mt-1">
+              <p>Período Tesouraria: <strong>{getTextoJanelaTesouraria()}</strong></p>
+              <p>Período Depósitos Bancários: <strong>{getTextoJanelaDepositos()}</strong></p>
+            </div>
           </div>
           <div className="text-right text-[10px] text-gray-500 space-y-0.5">
             <p className="font-bold text-gray-800">CP PRO &bull; Gestão Financeira</p>
@@ -291,7 +310,7 @@ export default function RelatorioNumerariosPrint() {
                   {depositos.length === 0 ? (
                     <tr><td colSpan="4" className="p-4 text-center text-gray-400 italic">Nenhum registro no período.</td></tr>
                   ) : (
-                    depositos.map((d, idx) => (
+                    depositos.map(d => (
                       <tr key={d.id || idx} className="hover:bg-gray-50">
                         <td className="p-1.5 font-semibold">{formatarData(d.data_operacao || d.data_deposito)} {d.hora_operacao || ''}</td>
                         <td className="p-1.5 text-gray-700 truncate max-w-[90px]">{d.banco} ({d.conta})</td>
