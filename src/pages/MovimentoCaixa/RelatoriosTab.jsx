@@ -34,8 +34,8 @@ export default function RelatoriosTab() {
 
   const getOpcoesDisponiveis = () => {
     if (tipoRelatorio === 'tipo_operacao') return ['Entrada +', 'Saída -'];
-    if (tipoRelatorio === 'forma_pagamento') return ['Dinheiro', 'PIX', 'Cartão', 'Depósito', 'TED'];
-    if (tipoRelatorio === 'tipo_documento') return ['PIX', 'Cartão', 'Vale', 'Despesa', 'Devolução', 'Fatura AtualCard', 'Sangria'];
+    if (tipoRelatorio === 'forma_pagamento') return ['Dinheiro', 'PIX', 'Cartão', 'Cheque', 'Depósito', 'TED'];
+    if (tipoRelatorio === 'tipo_documento') return ['PIX', 'Cartão', 'Cheque', 'Vale', 'Despesa', 'Devolução', 'Fatura AtualCard', 'Sangria'];
     return [];
   };
 

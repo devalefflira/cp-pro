@@ -10,7 +10,7 @@ export default function NovoLancamentoTab() {
   const [responsavelNome, setResponsavelNome] = useState('');
   const [dataHoraAtual, setDataHoraAtual] = useState('');
 
-  // Formulário Individual (Data Operação começa vazia)
+  // Formulário Individual
   const [formIndividual, setFormIndividual] = useState({
     data_operacao: '',
     tipo_documento: 'PIX',
@@ -21,7 +21,7 @@ export default function NovoLancamentoTab() {
     descricao: ''
   });
 
-  // Formulário em Lote (Data Operação começa vazia)
+  // Formulário em Lote
   const [formLote, setFormLote] = useState({
     data_operacao: '',
     tipo_documento: 'PIX',
@@ -197,7 +197,6 @@ export default function NovoLancamentoTab() {
   return (
     <div className="bg-white p-8 rounded-xl border shadow-sm max-w-5xl mx-auto space-y-6">
       
-      {/* SELETOR DE MODO */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b pb-4 gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -267,6 +266,7 @@ export default function NovoLancamentoTab() {
               <select value={formIndividual.tipo_documento} onChange={e => setFormIndividual({ ...formIndividual, tipo_documento: e.target.value })} className="w-full p-2.5 border rounded-lg bg-white font-semibold">
                 <option value="PIX">PIX</option>
                 <option value="Cartão">Cartão</option>
+                <option value="Cheque">Cheque</option>
                 <option value="Vale">Vale</option>
                 <option value="Despesa">Despesa</option>
                 <option value="Devolução">Devolução</option>
@@ -294,6 +294,7 @@ export default function NovoLancamentoTab() {
                 <option value="Dinheiro">Dinheiro</option>
                 <option value="PIX">PIX</option>
                 <option value="Cartão">Cartão</option>
+                <option value="Cheque">Cheque</option>
                 <option value="Depósito">Depósito</option>
                 <option value="TED">TED</option>
               </select>
@@ -341,7 +342,6 @@ export default function NovoLancamentoTab() {
       {modo === 'lote' && (
         <div className="space-y-6 text-xs">
           
-          {/* CRITÉRIOS FIXOS DO LOTE */}
           <div className="bg-slate-50 p-5 rounded-xl border border-slate-200 space-y-4">
             <h3 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-2">
               <Layers size={16} className="text-indigo-600" /> Critérios Comuns para o Lote
@@ -364,6 +364,7 @@ export default function NovoLancamentoTab() {
                 <select value={formLote.tipo_documento} onChange={e => setFormLote({ ...formLote, tipo_documento: e.target.value })} className="w-full p-2.5 border rounded-lg bg-white font-semibold">
                   <option value="PIX">PIX</option>
                   <option value="Cartão">Cartão</option>
+                  <option value="Cheque">Cheque</option>
                   <option value="Vale">Vale</option>
                   <option value="Despesa">Despesa</option>
                   <option value="Devolução">Devolução</option>
@@ -378,6 +379,7 @@ export default function NovoLancamentoTab() {
                   <option value="Dinheiro">Dinheiro</option>
                   <option value="PIX">PIX</option>
                   <option value="Cartão">Cartão</option>
+                  <option value="Cheque">Cheque</option>
                   <option value="Depósito">Depósito</option>
                   <option value="TED">TED</option>
                 </select>
