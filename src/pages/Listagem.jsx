@@ -1,7 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Edit, ChevronLeft, ChevronRight, X, RotateCcw, History, FilePenLine, Search, ChevronDown, Save, MessageSquare, MessageCircle } from 'lucide-react';
+import { 
+  Trash2, Edit, ChevronLeft, ChevronRight, X, RotateCcw, 
+  History, FilePenLine, Search, ChevronDown, Save, MessageCircle, 
+  Layers, CheckSquare, Square 
+} from 'lucide-react';
 import { differenceInDays, parseISO } from 'date-fns';
 
 // --- COMPONENTE CUSTOMIZADO: SELECT PESQUISÁVEL (FORMULÁRIOS) ---
@@ -183,7 +187,18 @@ export default function Listagem() {
   const itensPorPagina = 10;
   const [totalItens, setTotalItens] = useState(0);
 
-  // Modais
+  // Seleção de itens e Alteração em Lote
+  const [itensSelecionados, setItensSelecionados] = useState([]);
+  const [modalLoteAberto, setModalLoteAberto] = useState(false);
+  const [salvandoLote, setSalvandoLote] = useState(false);
+  const [formLote, setFormLote] = useState({
+    data_vencimento: '',
+    tipo_documento_id: '',
+    razao_id: '',
+    banco_id: ''
+  });
+
+  // Modais existentes
   const [modalAberto, setModalAberto] = useState(false);
   const [lancamentoEdicao, setLancamentoEdicao] = useState(null);
   const [dadosPagamento, setDadosPagamento] = useState({ valor_pago: '', data_pagamento: '', juros: 0, desconto: 0, dias_atraso: 0 });
@@ -237,11 +252,74 @@ export default function Listagem() {
       if (error) throw error;
       setLancamentos(data || []);
       setTotalItens(count || 0);
+      setItensSelecionados([]); // Limpa seleções ao recarregar página/filtro
     } catch (error) {
       console.error("Erro detalhado:", error);
       alert('Erro ao buscar dados: ' + (error.message || "Erro desconhecido"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Gerenciamento de Checkboxes
+  const handleToggleItem = (id) => {
+    setItensSelecionados(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleTodos = () => {
+    if (itensSelecionados.length === lancamentos.length && lancamentos.length > 0) {
+      setItensSelecionados([]);
+    } else {
+      setItensSelecionados(lancamentos.map(l => l.id));
+    }
+  };
+
+  // Abrir Modal de Alteração em Lote
+  const handleAbrirModalLote = () => {
+    setFormLote({
+      data_vencimento: '',
+      tipo_documento_id: '',
+      razao_id: '',
+      banco_id: ''
+    });
+    setModalLoteAberto(true);
+  };
+
+  // Salvar Alteração em Lote no Supabase
+  const handleSalvarLote = async () => {
+    const camposParaAtualizar = {};
+    if (formLote.data_vencimento) camposParaAtualizar.data_vencimento = formLote.data_vencimento;
+    if (formLote.tipo_documento_id) camposParaAtualizar.tipo_documento_id = formLote.tipo_documento_id;
+    if (formLote.razao_id) camposParaAtualizar.razao_id = formLote.razao_id;
+    if (formLote.banco_id) camposParaAtualizar.banco_id = formLote.banco_id;
+
+    if (Object.keys(camposParaAtualizar).length === 0) {
+      return alert("Preencha ao menos um campo para aplicar as alterações em lote.");
+    }
+
+    if (!confirm(`Deseja realmente aplicar as alterações em ${itensSelecionados.length} lançamentos selecionados?`)) {
+      return;
+    }
+
+    setSalvandoLote(true);
+    try {
+      const { error } = await supabase
+        .from('lancamentos')
+        .update(camposParaAtualizar)
+        .in('id', itensSelecionados);
+
+      if (error) throw error;
+
+      alert(`${itensSelecionados.length} lançamentos atualizados com sucesso!`);
+      setModalLoteAberto(false);
+      setItensSelecionados([]);
+      buscarLancamentos();
+    } catch (err) {
+      alert("Erro ao aplicar alterações em lote: " + err.message);
+    } finally {
+      setSalvandoLote(false);
     }
   };
 
@@ -343,9 +421,22 @@ export default function Listagem() {
       {/* CABEÇALHO */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4">
         <h2 className="text-3xl font-bold text-primary">Listagem</h2>
-        <button onClick={handleAbrirUltimos} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform hover:scale-105 flex items-center gap-2">
-          <History size={20} /> Últimos
-        </button>
+        
+        <div className="flex items-center gap-3">
+          {/* BOTÃO ALTERAÇÃO EM LOTE (APARECE QUANDO SELECIONAR MAIS DE UM ITEM) */}
+          {itensSelecionados.length > 1 && (
+            <button
+              onClick={handleAbrirModalLote}
+              className="bg-primary hover:bg-blue-900 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform hover:scale-105 flex items-center gap-2 text-sm animate-pulse"
+            >
+              <Layers size={18} /> Alteração em Lote ({itensSelecionados.length})
+            </button>
+          )}
+
+          <button onClick={handleAbrirUltimos} className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-full shadow-lg transition-transform hover:scale-105 flex items-center gap-2 text-sm">
+            <History size={18} /> Últimos
+          </button>
+        </div>
       </div>
 
       {/* FILTROS */}
@@ -396,6 +487,16 @@ export default function Listagem() {
           <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead className="bg-gray-50 text-gray-600 font-semibold text-xs uppercase tracking-wider">
               <tr>
+                {/* CHECKBOX SELECIONAR TODOS */}
+                <th className="px-3 py-3 border-b text-center w-10">
+                  <input
+                    type="checkbox"
+                    checked={lancamentos.length > 0 && itensSelecionados.length === lancamentos.length}
+                    onChange={handleToggleTodos}
+                    className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
+                    title="Selecionar todos da página"
+                  />
+                </th>
                 <th className="px-3 py-3 border-b">Vencimento</th>
                 <th className="px-3 py-3 border-b">Fornecedor</th>
                 <th className="px-3 py-3 border-b">Tipo</th>
@@ -413,50 +514,147 @@ export default function Listagem() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 text-xs">
-              {loading ? <tr><td colSpan="14" className="p-8 text-center">Carregando...</td></tr> :
-                lancamentos.map((l) => (
-                  <tr key={l.id} className="hover:bg-blue-50 transition-colors">
-                    <td className="px-3 py-3 font-medium text-gray-700">
-                      <div className="flex items-center gap-1">
-                        {formatarData(l.data_vencimento)}
-                        {l.observacao && l.observacao.trim() !== '' && (
-                          <button onClick={() => handleAbrirObs(l.observacao)} className="text-blue-500 hover:bg-blue-100 p-0.5 rounded-full">
-                            <MessageCircle size={14} fill="currentColor" className="opacity-80" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 font-bold uppercase text-gray-900">{l.fornecedores?.nome}</td>
-                    <td className="px-3 py-3 text-gray-600">{l.tipos_documento?.descricao}</td>
-                    <td className="px-3 py-3 text-gray-600">{l.numero_documento}</td>
-                    <td className="px-3 py-3 text-gray-600">{l.nota_fiscal || '-'}</td>
-                    <td className="px-3 py-3 text-gray-600">{l.parcelas?.descricao}</td>
-                    <td className="px-3 py-3 text-gray-600 font-medium text-blue-800 bg-blue-50/50 rounded">{l.razoes?.nome}</td>
-                    <td className="px-3 py-3 text-gray-600">{l.bancos?.nome || 'N/A'}</td>
-                    <td className={`px-3 py-3 font-bold ${l.status === 'Pago' ? 'text-green-600' : 'text-red-500'}`}>{formatarMoeda(l.valor)}</td>
-                    <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${l.status === 'Pago' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{l.status}</span></td>
+              {loading ? <tr><td colSpan="15" className="p-8 text-center">Carregando...</td></tr> :
+                lancamentos.map((l) => {
+                  const isChecked = itensSelecionados.includes(l.id);
+                  return (
+                    <tr key={l.id} className={`transition-colors ${isChecked ? 'bg-blue-50/80 font-medium' : 'hover:bg-blue-50'}`}>
+                      {/* CHECKBOX DO ITEM */}
+                      <td className="px-3 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleItem(l.id)}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
+                        />
+                      </td>
 
-                    <td className="px-3 py-3">
-                      <div className="flex justify-center gap-1">
-                        <button onClick={() => handleAbrirModalPagamento(l)} className="p-1 text-green-600 hover:bg-green-100 rounded border border-green-200"><Edit size={14} /></button>
-                        <button onClick={() => handleAbrirEditar(l)} className="p-1 text-blue-500 hover:bg-blue-100 rounded border border-blue-200"><FilePenLine size={14} /></button>
-                        <button onClick={() => handleExcluir(l.id)} className="p-1 text-red-500 hover:bg-red-100 rounded border border-red-200"><Trash2 size={14} /></button>
-                      </div>
-                    </td>
+                      <td className="px-3 py-3 font-medium text-gray-700">
+                        <div className="flex items-center gap-1">
+                          {formatarData(l.data_vencimento)}
+                          {l.observacao && l.observacao.trim() !== '' && (
+                            <button onClick={() => handleAbrirObs(l.observacao)} className="text-blue-500 hover:bg-blue-100 p-0.5 rounded-full">
+                              <MessageCircle size={14} fill="currentColor" className="opacity-80" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-3 py-3 font-bold uppercase text-gray-900">{l.fornecedores?.nome}</td>
+                      <td className="px-3 py-3 text-gray-600">{l.tipos_documento?.descricao}</td>
+                      <td className="px-3 py-3 text-gray-600">{l.numero_documento}</td>
+                      <td className="px-3 py-3 text-gray-600">{l.nota_fiscal || '-'}</td>
+                      <td className="px-3 py-3 text-gray-600">{l.parcelas?.descricao}</td>
+                      <td className="px-3 py-3 text-gray-600 font-medium text-blue-800 bg-blue-50/50 rounded">{l.razoes?.nome}</td>
+                      <td className="px-3 py-3 text-gray-600">{l.bancos?.nome || 'N/A'}</td>
+                      <td className={`px-3 py-3 font-bold ${l.status === 'Pago' ? 'text-green-600' : 'text-red-500'}`}>{formatarMoeda(l.valor)}</td>
+                      <td className="px-3 py-3"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${l.status === 'Pago' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>{l.status}</span></td>
 
-                    <td className="px-3 py-3 font-bold text-gray-700 bg-gray-50/50">{l.valor_pago ? formatarMoeda(l.valor_pago) : '-'}</td>
-                    <td className="px-3 py-3 text-red-600 bg-gray-50/50">{l.juros > 0 ? formatarMoeda(l.juros) : '-'}</td>
-                    <td className="px-3 py-3 text-green-600 bg-gray-50/50">{l.desconto > 0 ? formatarMoeda(l.desconto) : '-'}</td>
-                  </tr>
-                ))}
+                      <td className="px-3 py-3">
+                        <div className="flex justify-center gap-1">
+                          <button onClick={() => handleAbrirModalPagamento(l)} className="p-1 text-green-600 hover:bg-green-100 rounded border border-green-200" title="Baixar documento"><Edit size={14} /></button>
+                          <button onClick={() => handleAbrirEditar(l)} className="p-1 text-blue-500 hover:bg-blue-100 rounded border border-blue-200" title="Editar documento"><FilePenLine size={14} /></button>
+                          <button onClick={() => handleExcluir(l.id)} className="p-1 text-red-500 hover:bg-red-100 rounded border border-red-200" title="Excluir"><Trash2 size={14} /></button>
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3 font-bold text-gray-700 bg-gray-50/50">{l.valor_pago ? formatarMoeda(l.valor_pago) : '-'}</td>
+                      <td className="px-3 py-3 text-red-600 bg-gray-50/50">{l.juros > 0 ? formatarMoeda(l.juros) : '-'}</td>
+                      <td className="px-3 py-3 text-green-600 bg-gray-50/50">{l.desconto > 0 ? formatarMoeda(l.desconto) : '-'}</td>
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
         <div className="p-3 bg-gray-50 border-t flex flex-col md:flex-row items-center justify-between gap-4 text-xs">
-          <span className="text-gray-500 font-medium"><strong>{lancamentos.length}</strong> de <strong>{totalItens}</strong> reg.</span>
+          <span className="text-gray-500 font-medium">
+            <strong>{lancamentos.length}</strong> de <strong>{totalItens}</strong> reg.
+            {itensSelecionados.length > 0 && <span className="ml-2 font-bold text-primary">({itensSelecionados.length} selecionado(s))</span>}
+          </span>
           <div className="flex gap-1">{renderPaginacao()}</div>
         </div>
       </div>
+
+      {/* MODAL DE ALTERAÇÃO EM LOTE */}
+      {modalLoteAberto && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+          <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-xl border border-gray-100 relative max-h-[90vh] overflow-y-auto space-y-4">
+            <div className="flex justify-between items-center border-b pb-3">
+              <div>
+                <h3 className="text-xl font-bold text-primary flex items-center gap-2">
+                  <Layers size={22} className="text-primary" /> Alteração em Lote
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Atualizando <strong>{itensSelecionados.length}</strong> lançamentos selecionados. Preencha apenas os campos que deseja alterar.
+                </p>
+              </div>
+              <button onClick={() => setModalLoteAberto(false)} className="text-gray-400 hover:text-red-500 p-1">
+                <X size={22} />
+              </button>
+            </div>
+
+            <form className="space-y-4 text-xs" onSubmit={(e) => { e.preventDefault(); handleSalvarLote(); }}>
+              {/* DATA DE VENCIMENTO */}
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1">Nova Data de Vencimento</label>
+                <input
+                  type="date"
+                  value={formLote.data_vencimento}
+                  onChange={e => setFormLote({ ...formLote, data_vencimento: e.target.value })}
+                  className="w-full p-3 border rounded-lg bg-gray-50 focus:ring-2 focus:ring-primary outline-none text-sm"
+                />
+              </div>
+
+              {/* TIPO */}
+              <SearchableSelect
+                label="Novo Tipo de Documento"
+                placeholder="Selecione ou busque..."
+                options={listas.tipos_documento}
+                fieldKey="descricao"
+                value={formLote.tipo_documento_id}
+                onChange={(val) => setFormLote({ ...formLote, tipo_documento_id: val })}
+              />
+
+              {/* RAZÃO */}
+              <SearchableSelect
+                label="Nova Razão"
+                placeholder="Selecione ou busque..."
+                options={listas.razoes}
+                fieldKey="nome"
+                value={formLote.razao_id}
+                onChange={(val) => setFormLote({ ...formLote, razao_id: val })}
+              />
+
+              {/* BANCO */}
+              <SearchableSelect
+                label="Novo Banco"
+                placeholder="Selecione ou busque..."
+                options={listas.bancos}
+                fieldKey="nome"
+                value={formLote.banco_id}
+                onChange={(val) => setFormLote({ ...formLote, banco_id: val })}
+              />
+
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => setModalLoteAberto(false)}
+                  className="px-6 py-2.5 border rounded-lg text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={salvandoLote}
+                  className="px-8 py-2.5 bg-primary hover:bg-blue-900 text-white font-bold rounded-lg shadow-md transition-colors flex items-center gap-2"
+                >
+                  <Save size={16} /> {salvandoLote ? "Salvando..." : "Salvar em Lote"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* MODAL OBSERVAÇÃO */}
       {modalObsAberto && (
@@ -501,7 +699,7 @@ export default function Listagem() {
         </div>
       )}
 
-      {/* MODAL EDIÇÃO */}
+      {/* MODAL EDIÇÃO INDIVIDUAL */}
       {modalEditarAberto && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
           <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-2xl border border-gray-200 relative max-h-[90vh] overflow-y-auto">
